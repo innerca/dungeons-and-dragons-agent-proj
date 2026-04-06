@@ -12,8 +12,11 @@ cd dungeons-and-dragons-agent-proj
 # 2. 配置环境变量（填入你的 API Key）
 cp .env.example .env
 # 编辑 .env，填入 DEEPSEEK_API_KEY
+```
 
-# 3. Docker 一键启动（推荐）
+### 方式一：Docker 一键启动（推荐）
+
+```bash
 make dev
 # 浏览器打开 http://localhost:3000
 
@@ -24,7 +27,21 @@ make dev-down
 make dev-logs
 ```
 
-**本地开发（不用 Docker）：**
+> **国内网络注意：** Docker Hub 在国内可能无法直接访问，需要配置镜像加速器。
+> 在 Docker daemon 配置中添加（OrbStack 为 `~/.orbstack/config/docker.json`，Docker Desktop 为 Settings > Docker Engine）：
+> ```json
+> {
+>   "registry-mirrors": [
+>     "https://docker.m.daocloud.io",
+>     "https://mirror.ccs.tencentyun.com"
+>   ]
+> }
+> ```
+> 此外，Dockerfile 中已内置国内加速配置：
+> - Gateway: `GOPROXY=https://goproxy.cn,direct`
+> - GameServer: PyPI 清华源 `https://pypi.tuna.tsinghua.edu.cn/simple`
+
+### 方式二：本地开发（不用 Docker）
 
 ```bash
 # 前置依赖（首次需要）
@@ -46,6 +63,17 @@ make dev-frontend       # 终端 3: React Frontend :5173
 # 查看所有可用命令
 make help
 ```
+
+### 为什么本地开发不用 Docker？
+
+本项目日常开发使用本地原生环境（Go / Python venv / Node.js）而非 Docker，原因如下：
+
+1. **热重载速度**：本地 `go run`、`vite dev`、`uv run` 的文件监听和重载是即时的，Docker 卷挂载在 macOS 上存在文件系统通知延迟
+2. **调试体验**：本地环境可以直接使用 IDE 断点调试、attach 进程，不需要配置远程调试协议
+3. **资源占用**：三个容器 + 虚拟机的内存开销远大于三个本地进程
+4. **gRPC 代码生成**：`protoc` 插件链（protoc-gen-go、grpc_tools）在本地执行更直接，不需要在容器内安装额外工具
+
+Docker Compose 用于**一键演示、CI/CD、部署验证**，确保"克隆即可跑"的体验。
 
 ## 项目概述
 
