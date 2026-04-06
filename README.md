@@ -1,6 +1,6 @@
 # Dungeons & Dragons Agent Project
 
-> **当前版本：v0.400** | [更新日志](#更新日志)
+> **当前版本：v0.500** | [更新日志](#更新日志)
 
 AI 驱动的 DND 游戏项目，基于微服务架构构建。以刀剑神域 Progressive 系列小说为世界观基础，通过 RAG 检索增强生成实现沉浸式游戏体验。
 
@@ -91,13 +91,16 @@ make help
 │                                    :6379                         │   (DeepSeek)
 │                                                            PostgreSQL
 │                                                              :5432
+│                                                            ChromaDB
+│                                                          (嵌入式/本地)
 └──────────────────────────────────────────────────────────────────────┘
 
 数据流:
   Frontend ──WS/SSE──> Gateway ──gRPC──> GameServer ──ReAct──> LLM (工具调用)
                          │                    │                      │
-                      Redis (Auth)     Redis (缓存/对话)     ActionExecutor
-                                       PG (持久化)            (骰子/伤害计算)
+                      Redis (Auth)     Redis (缓存/对话/战斗)   ActionExecutor
+                                       PG (持久化/定义表)       (骰子/伤害计算)
+                                       ChromaDB (小说+实体RAG)   QuestService
 ```
 
 ## 技术栈
@@ -109,7 +112,7 @@ make help
 | 游戏服务器 | Python + grpcio |
 | 前端通信 | WebSocket (发送) + SSE (接收流式响应) |
 | 服务间通信 | gRPC (服务端流式) |
-| 数据库 | PostgreSQL 16 + Redis 7 (规划中) |
+| 数据库 | PostgreSQL 16 + Redis 7 + ChromaDB (嵌入式) |
 | 容器化 | Docker Compose |
 | Python 包管理 | uv |
 | LLM | DeepSeek (默认)，支持多模型切换 |
@@ -222,21 +225,68 @@ make verify-vectordb
 ├── gateway/            # Golang 网关 (Auth 中间件 + REST API)
 ├── gameserver/         # Python 游戏服务器 (DND 引擎)
 │   ├── src/gameserver/
-│   │   ├── db/         # PostgreSQL + Redis 连接层
-│   │   ├── game/       # ReAct 引擎 (工具/Action Executor/上下文)
+│   │   ├── config/     # 配置加载 (游戏参数/战斗/升级/经济)
+│   │   ├── db/         # PostgreSQL + Redis + ChromaDB 连接层
+│   │   ├── game/       # 游戏引擎核心
+│   │   │   ├── action_executor.py   # 16 工具处理器 + 5 步验证链
+│   │   │   ├── combat_state.py      # Redis 战斗状态 + 自动反击
+│   │   │   ├── quest_service.py     # 任务状态机 (FSM)
+│   │   │   ├── world_flags_service.py    # 世界标记/剧情分支
+│   │   │   ├── npc_relationship_service.py # NPC 关系 (-100~100)
+│   │   │   ├── scene_classifier.py  # 场景分类 + 工具/RAG 裁剪
+│   │   │   ├── context_builder.py   # 6 层上下文组装
+│   │   │   └── tools.py             # ReAct 工具定义
 │   │   ├── llm/        # LLM 提供商 (DeepSeek/OpenAI/Claude)
 │   │   └── service/    # 业务逻辑层
-│   └── scripts/        # 数据库初始化 / 小说解析 / 向量化入库
+│   └── scripts/        # 数据库初始化/迁移/数据管理/向量化
+│       └── migrations/  # SQL 迁移 (v0500_schema.sql)
 ├── scripts/            # 一键启动/停止脚本 (含环境检测)
 ├── asset/              # 游戏资源
 │   └── sao/            # SAO Progressive 小说文本 (1-8卷)
-├── data/               # 游戏设计文档 (世界观设定、系统蓝图、分块策略)
+├── data/               # 游戏设计文档 + 实体数据
+│   └── entities/       # YAML 实体定义 (怪物/NPC/任务，git 跟踪)
 ├── docker-compose.yml  # 容器编排 (PG + Redis + GameServer + Gateway + Frontend)
 ├── Makefile            # 构建命令
 └── VERSION             # 当前版本
 ```
 
 ## 更新日志
+
+### v0.500 (2026-04-06) - 数据驱动游戏引擎 + RAG 集成 + 完整战斗/任务系统
+
+**Phase 1: 数据基础**
+- **3 张定义表**：`monster_definitions`(22列)、`npc_definitions`(16列)、`quest_definitions`(15列)，JSONB 灵活字段
+- **Floor 1 种子数据**：8 种怪物、6 个 NPC、3 个任务，全部使用 `ON CONFLICT DO UPDATE` 增量 upsert
+- **YAML 实体文件**：`data/entities/` 目录作为 git 跟踪的数据源，含扩展指南注释
+- **`manage_game_data.py`**：CLI 工具（sync/show/delete/migrate），从 YAML upsert 到 PG
+- **游戏配置外部化**：`config.yaml` 新增 `game:` 段（战斗/升级/经济/场景关键词参数）
+- **Settings 数据类**：`CombatConfig`/`LevelingConfig`/`ContextConfig`/`GameConfig`
+
+**Phase 2: RAG 集成**
+- **ChromaDB 双集合**：`sao_progressive_novels`(1605 chunks) + `sao_world_entities`(怪物/NPC/任务描述)
+- **实体向量化脚本**：`vectorize_entities.py`，从 PG 读取定义表 → 构建描述文档 → `collection.upsert()`
+- **场景分类器**：关键词匹配 5 种场景类型（combat/exploration/social/rest/general）
+- **动态工具裁剪**：按场景类型过滤不相关工具，节省 ~150-200 token
+- **场景感知 RAG**：根据场景类型优先检索对应实体类型（战斗→怪物，社交→NPC）
+
+**Phase 3: 战斗系统**
+- **Redis 战斗状态**：`CombatSession` + `MonsterState`，30 分钟 TTL，支持 BOSS 多 HP 条
+- **真实怪物数据**：攻击处理器从 PG/Redis 加载实际怪物属性，不再硬编码
+- **装备 ATK 集成**：从 `character_inventory` 查询已装备武器的 `weapon_atk`
+- **自动反击系统**：怪物每回合自动反击（d20 vs 玩家 AC，伤害 = ATK - DEF*0.6）
+- **经验/升级系统**：`exp_to_next = 100 * level^1.5`，+3 属性点/级，升级全回复
+- **HP 公式**：`max_hp = 200 + level*50 + vit*10`
+- **楼层怪物遭遇**：移动时按当前楼层从 PG 查询实际怪物，25% 遭遇率
+
+**Phase 4: 任务/NPC/世界系统**
+- **任务状态机**：`quest_service.py`，FSM: undiscovered → available → active → completed/failed
+- **任务触发器**：location/npc_talk/item/auto 四种触发类型，移动和对话后自动检查
+- **任务进度追踪**：kill/collect/talk/reach 四种目标类型，击杀和移动后自动更新
+- **任务奖励发放**：EXP/Col/物品/世界标记/NPC 关系一次性结算
+- **世界标记服务**：`world_flags_service.py`，key-value 标记用于剧情分支和任务前置条件
+- **NPC 关系服务**：`npc_relationship_service.py`，-100~100 关系值 + 7 级好感度
+- **工具处理器补全**：`accept_quest`(真实任务接取)、`talk_to_npc`(NPC 数据+关系+触发)、`equip_item`(真实装备逻辑)、`inspect`(数据库查询怪物/NPC/物品信息)
+- **增强上下文快照**：LLM 上下文注入活跃任务、战斗状态、NPC 关系摘要
 
 ### v0.400 (2026-04-06) - DND 游戏引擎 + 全栈重构
 - **基础设施**：Docker Compose 新增 PostgreSQL 16 + Redis 7，数据持久化到 named volumes

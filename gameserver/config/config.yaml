@@ -23,3 +23,80 @@ llm:
       model: "claude-3-sonnet-20240229"
       max_tokens: 2048
       provider_type: "anthropic"
+
+# ─── Game Configuration ───
+game:
+  # Token budget per request (~4700 total)
+  token_budget:
+    system_prompt: 800
+    tool_definitions: 500
+    player_state: 200
+    summary: 300
+    rag_chunks: 800
+    chat_history: 2000
+    user_input: 100
+
+  # Context assembly
+  context:
+    max_history_messages: 20
+    max_rag_chunks: 5
+    history_compression_threshold: 40
+    history_trim_to: 30
+    summary_max_chars: 600
+
+  # Combat
+  combat:
+    combat_state_ttl_seconds: 1800      # 30 minutes
+    max_react_rounds: 5
+    counter_attack_enabled: true
+    critical_weak_base: 0.05            # 5% base weak-point crit chance
+    critical_weak_per_accuracy: 0.02    # +2% per accuracy bonus
+    critical_true_base: 0.01            # 1% base true crit
+    critical_true_luk_divisor: 200      # +LUK/200
+
+  # Leveling
+  leveling:
+    exp_formula_base: 100               # exp_to_next = base * level^exponent
+    exp_formula_exponent: 1.5
+    stat_points_per_level: 3
+    base_hp: 200
+    hp_per_level: 50
+    hp_per_vit: 10
+
+  # Economy
+  economy:
+    starting_col: 500
+    npc_buy_rate: 0.5                   # NPC pays 50% of base_price
+
+  # Scene detection keywords (for dynamic context pruning)
+  scene_keywords:
+    combat:
+      - 攻击
+      - 战斗
+      - 剑技
+      - 防御
+      - 逃跑
+      - 怪物
+      - BOSS
+      - HP
+    exploration:
+      - 移动
+      - 前往
+      - 探索
+      - 进入
+      - 走
+      - 迷宫
+    social:
+      - 对话
+      - 说
+      - 问
+      - NPC
+      - 购买
+      - 出售
+      - 交易
+      - 情报
+    rest:
+      - 休息
+      - 回复
+      - 旅馆
+      - 睡觉

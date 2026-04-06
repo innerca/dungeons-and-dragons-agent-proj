@@ -1,0 +1,266 @@
+# Floor 1 Monster Definitions
+# This file is the source of truth for Floor 1 monsters.
+# Use manage_game_data.py to sync these to PostgreSQL and ChromaDB.
+#
+# === EXPANSION GUIDE ===
+# To add a new monster, copy an existing entry and modify:
+#   - id: unique snake_case identifier, prefixed with floor (e.g. f2_xxx)
+#   - All numeric fields (hp, atk, defense, ac, exp_reward, etc.)
+#   - abilities_json: array of {name, desc} objects
+#   - loot_table_json: array of {item_id, name, chance} objects (chance: 0.0-1.0)
+#   - behavior_type: aggressive | defensive | pack | ambush | phase | steal
+#   - monster_type: animal | insect | humanoid | plant | undead | spirit | boss | mini_boss
+#
+# Then run: python manage_game_data.py sync monsters
+# This will UPSERT (not recreate) - safe to run repeatedly.
+
+monsters:
+  - id: f1_boar
+    name: 山猪
+    name_en: Wild Boar
+    monster_type: animal
+    floor: 1
+    area: 草原地带
+    level_min: 1
+    level_max: 2
+    hp: 50
+    atk: 12
+    defense: 3
+    ac: 8
+    exp_reward: 15
+    col_reward_min: 5
+    col_reward_max: 15
+    behavior_type: aggressive
+    weaknesses: 侧面攻击可避开獠牙
+    abilities_json: []
+    loot_table_json:
+      - item_id: material_boar_tusk
+        name: 山猪獠牙
+        chance: 0.6
+      - item_id: material_boar_hide
+        name: 山猪毛皮
+        chance: 0.4
+    description: >
+      起始之城周围草原上游荡的野猪型怪物，体型约一米长，獠牙锋利但动作迟缓。
+      新手练级的首选目标。
+
+  - id: f1_wolf
+    name: 野狼
+    name_en: Wild Wolf
+    monster_type: animal
+    floor: 1
+    area: 草原地带
+    level_min: 2
+    level_max: 3
+    hp: 80
+    atk: 18
+    defense: 4
+    ac: 10
+    exp_reward: 25
+    col_reward_min: 10
+    col_reward_max: 25
+    behavior_type: pack
+    weaknesses: 单独一只时较弱，注意群体围攻
+    abilities_json:
+      - name: 嚎叫召唤
+        desc: HP低于50%时嚎叫，30%概率召唤1只同伴
+    loot_table_json:
+      - item_id: material_wolf_fang
+        name: 狼牙
+        chance: 0.5
+      - item_id: material_wolf_pelt
+        name: 狼毛皮
+        chance: 0.35
+    description: >
+      草原上成群活动的灰色野狼，速度较快，会协同围攻落单玩家。
+
+  - id: f1_worm
+    name: 蠕虫
+    name_en: Earthworm
+    monster_type: insect
+    floor: 1
+    area: 草原地带
+    level_min: 1
+    level_max: 1
+    hp: 30
+    atk: 8
+    defense: 2
+    ac: 7
+    exp_reward: 8
+    col_reward_min: 2
+    col_reward_max: 8
+    behavior_type: defensive
+    weaknesses: 体型柔软，斩击类攻击效果好
+    abilities_json: []
+    loot_table_json:
+      - item_id: material_worm_slime
+        name: 蠕虫黏液
+        chance: 0.5
+    description: >
+      从草原泥土中钻出的巨型蠕虫，约臂粗半米长。攻击力低但会缠绕减速。
+
+  - id: f1_beetle
+    name: 甲虫
+    name_en: Giant Beetle
+    monster_type: insect
+    floor: 1
+    area: 草原地带
+    level_min: 1
+    level_max: 2
+    hp: 45
+    atk: 10
+    defense: 6
+    ac: 11
+    exp_reward: 12
+    col_reward_min: 3
+    col_reward_max: 12
+    behavior_type: aggressive
+    weaknesses: 翻转后腹部防御为0
+    abilities_json:
+      - name: 坚硬甲壳
+        desc: 正面攻击防御+3
+    loot_table_json:
+      - item_id: material_beetle_shell
+        name: 甲虫壳
+        chance: 0.45
+      - item_id: material_beetle_horn
+        name: 甲虫角
+        chance: 0.2
+    description: >
+      拳头大小的黑色甲虫型怪物，甲壳坚硬但翻转后腹部毫无防御。
+
+  - id: f1_wasp
+    name: 黄蜂
+    name_en: Giant Wasp
+    monster_type: insect
+    floor: 1
+    area: 草原地带
+    level_min: 2
+    level_max: 3
+    hp: 55
+    atk: 15
+    defense: 3
+    ac: 12
+    exp_reward: 20
+    col_reward_min: 8
+    col_reward_max: 20
+    behavior_type: aggressive
+    weaknesses: 飞行中命中率较低，可等其俯冲时反击
+    abilities_json:
+      - name: 毒针
+        desc: 攻击有15%概率施加中毒(伤害)，持续30秒，每秒损失2HP
+    loot_table_json:
+      - item_id: material_wasp_stinger
+        name: 黄蜂毒针
+        chance: 0.3
+      - item_id: material_wasp_wing
+        name: 黄蜂翅膀
+        chance: 0.4
+    description: >
+      体长约30厘米的巨大黄蜂，飞行速度快，尾部毒针有中毒效果。
+
+  - id: f1_kobold_trooper
+    name: 废墟狗头人突击兵
+    name_en: Ruin Kobold Trooper
+    monster_type: humanoid
+    floor: 1
+    area: 迷宫塔
+    level_min: 5
+    level_max: 6
+    hp: 180
+    atk: 30
+    defense: 10
+    ac: 12
+    exp_reward: 55
+    col_reward_min: 25
+    col_reward_max: 50
+    behavior_type: aggressive
+    weaknesses: 三连攻击后有约2秒失去平衡的硬直
+    abilities_json:
+      - name: 手斧三连击
+        desc: 连续三次手斧攻击，倍率1.8，攻击后2秒硬直
+    loot_table_json:
+      - item_id: material_kobold_axe
+        name: 狗头人手斧
+        chance: 0.3
+      - item_id: material_kobold_hide
+        name: 狗头人毛皮
+        chance: 0.5
+    description: >
+      身高约1.5米的直立犬型类人怪物，穿着简陋皮甲持手斧。
+      擅长三连攻击但攻击后会失去平衡。迷宫塔内的主要遭遇对象。
+
+  - id: f1_kobold_guard
+    name: 废墟狗头人护卫兵
+    name_en: Ruin Kobold Sentinel
+    monster_type: humanoid
+    floor: 1
+    area: 迷宫塔
+    level_min: 6
+    level_max: 7
+    hp: 250
+    atk: 25
+    defense: 18
+    ac: 15
+    exp_reward: 70
+    col_reward_min: 30
+    col_reward_max: 60
+    behavior_type: defensive
+    weaknesses: 喉咙是弱点，弱点会心伤害x1.5
+    abilities_json:
+      - name: 盾牌格挡
+        desc: 有40%概率格挡正面攻击，减伤50%
+      - name: 斧枪突刺
+        desc: 远距离突刺，倍率1.2
+    loot_table_json:
+      - item_id: material_kobold_armor
+        name: 狗头人金属片
+        chance: 0.25
+      - item_id: material_kobold_axe
+        name: 狗头人手斧
+        chance: 0.4
+    description: >
+      穿着金属铠甲、持斧枪和圆盾的精英狗头人。防御力高，弱点在喉咙处。
+      通常2-3只成组巡逻。
+
+  - id: f1_boss_illfang
+    name: 狗头人领主伊尔凡古
+    name_en: Illfang the Kobold Lord
+    monster_type: boss
+    floor: 1
+    area: 迷宫塔顶层魔王房间
+    level_min: 10
+    level_max: 10
+    hp: 2000
+    atk: 45
+    defense: 20
+    ac: 14
+    exp_reward: 500
+    col_reward_min: 500
+    col_reward_max: 1000
+    behavior_type: phase
+    weaknesses: 第4阶段大刀剑技后有较长硬直；护卫兵优先清理
+    abilities_json:
+      - name: 4条HP机制
+        desc: 每消耗1条HP(500)涌出3只护卫兵
+      - name: 阶段切换
+        desc: 前3条HP使用骨斧+盾；第4条切换大刀(武士刀)
+      - name: 旋车
+        desc: 大刀剑技，垂直跳起空中旋转六道鲜红光，倍率3.0，附带晕眩
+      - name: 浮舟+绯扇
+        desc: 上挑+三连击组合技，倍率4.5
+      - name: 幻月
+        desc: 随机轨迹斩击，倍率2.0，硬直短
+    loot_table_json:
+      - item_id: armor_midnight_coat
+        name: 午夜大衣
+        chance: 1.0
+        condition: LA_reward
+      - item_id: material_boss_fang
+        name: 魔王獠牙
+        chance: 0.8
+    description: >
+      第1层楼层BOSS。身高超过2米的巨大狗头人领主，全身深蓝色毛皮，血红色眼睛。
+      拥有4条HP，前3阶段使用骨斧+圆盾战斗，最后阶段切换为大刀(武士刀)并释放强力剑技。
+      每消耗一条HP会召唤3只狗头人护卫兵。
+      魔王房间为宽20米、纵深100米的长方形空间，战斗中大门不关闭可撤退。

@@ -1,0 +1,140 @@
+# Floor 1 Quest Definitions
+# This file is the source of truth for Floor 1 quests.
+# Use manage_game_data.py to sync these to PostgreSQL and ChromaDB.
+#
+# === EXPANSION GUIDE ===
+# To add a new quest, copy an existing entry and modify:
+#   - id: unique snake_case identifier, prefixed with q_fN_ (e.g. q_f2_xxx)
+#   - quest_type: main | floor_feature | daily | hidden
+#   - difficulty: easy | normal | hard | extreme
+#   - prerequisites_json: {min_level:N, required_quests:["q_id"], required_flags:{"key":"value"}}
+#   - trigger_json: {type:"location"|"npc_talk"|"item"|"auto", target:"...", detail:"..."}
+#   - objectives_json: array of {type:"kill"|"collect"|"talk"|"reach", target, count, desc}
+#   - rewards_json: {exp:N, col:N, items:["item_id"], flags:{"key":"value"}, relationships:{"npc_id":N}}
+#   - choices_json: for branching quests [{id, description, consequences:{flags:{}, relationships:{}}}]
+#
+# For multi-chapter quests (like Elf War), create separate entries with:
+#   chapter: 1, 2, 3, ...
+#   total_chapters: N
+#   prerequisites_json: {required_quests:["previous_chapter_id"]}
+#
+# Then run: python manage_game_data.py sync quests
+# This will UPSERT (not recreate) - safe to run repeatedly.
+
+quests:
+  - id: q_f1_anneal_blade
+    name: 韧炼之剑
+    quest_type: floor_feature
+    floor: 1
+    chapter: 1
+    total_chapters: 1
+    difficulty: hard
+    is_repeatable: false
+    prerequisites_json:
+      min_level: 3
+    trigger_json:
+      type: location
+      target: 霍鲁卡村
+      detail: 到达霍鲁卡村后自动触发，村长告知附近洞窟的传说
+    objectives_json:
+      - type: kill
+        target: f1_giant_wasp_queen
+        count: 1
+        desc: 击败巨型黄蜂女王
+      - type: collect
+        target: material_wasp_ovule
+        count: 1
+        desc: 获取黄蜂卵珠
+    rewards_json:
+      exp: 200
+      col: 0
+      items:
+        - sword_anneal_blade
+      flags:
+        anneal_blade_obtained: true
+    failure_json: {}
+    choices_json: []
+    description: >
+      到达霍鲁卡村后获知的困难获取任务。需要深入洞窟击败巨型黄蜂女王并取回卵珠，
+      交给村长后获得准稀有单手剑「韧炼之剑」(ATK 45)。
+      这把剑性能优秀可用到第4层，是前线玩家的重要装备。
+
+  - id: q_f1_boss_raid
+    name: 第一次魔王攻略战
+    quest_type: main
+    floor: 1
+    chapter: 1
+    total_chapters: 1
+    difficulty: extreme
+    is_repeatable: false
+    prerequisites_json:
+      min_level: 5
+      recommended_level: 8
+    trigger_json:
+      type: npc_talk
+      target: npc_diabel
+      detail: 在托尔巴纳喷水池广场参加迪亚贝尔召集的攻略会议
+    objectives_json:
+      - type: talk
+        target: npc_diabel
+        count: 1
+        desc: 参加攻略会议
+      - type: reach
+        target: 迷宫塔顶层魔王房间
+        count: 1
+        desc: 到达魔王房间
+      - type: kill
+        target: f1_boss_illfang
+        count: 1
+        desc: 击败狗头人领主伊尔凡古
+    rewards_json:
+      exp: 500
+      col: 500
+      flags:
+        floor1_cleared: true
+        floor2_unlocked: true
+      special: "LA奖励:午夜大衣(给予最后一击的玩家)"
+    failure_json:
+      condition: 全灭
+      desc: 攻略部队全灭，BOSS回复全部HP，可重新挑战
+    choices_json: []
+    description: >
+      第1层核心事件。迪亚贝尔在托尔巴纳喷水池广场召集44人联合部队挑战楼层BOSS
+      狗头人领主伊尔凡古。BOSS拥有4条HP，前3阶段使用骨斧+盾，最后阶段切换大刀
+      释放强力剑技。每条HP消耗后涌出3只护卫兵。历史上迪亚贝尔在此战中阵亡。
+
+  - id: q_f1_argo_info
+    name: 情报贩子的委托
+    quest_type: floor_feature
+    floor: 1
+    chapter: 1
+    total_chapters: 1
+    difficulty: easy
+    is_repeatable: false
+    prerequisites_json: {}
+    trigger_json:
+      type: npc_talk
+      target: npc_argo
+      detail: 在起始之城或托尔巴纳偶遇亚鲁戈
+    objectives_json:
+      - type: talk
+        target: npc_argo
+        count: 1
+        desc: 与亚鲁戈对话
+      - type: collect
+        target: material_field_map_data
+        count: 3
+        desc: 收集3个区域的地图数据（探索新区域自动获得）
+    rewards_json:
+      exp: 100
+      col: 300
+      items: []
+      flags:
+        argo_contact: true
+      relationships:
+        npc_argo: 15
+    failure_json: {}
+    choices_json: []
+    description: >
+      偶遇情报贩子亚鲁戈后触发的入门任务。帮助她收集野外地图数据以编写攻略册。
+      完成后与亚鲁戈建立联系，可以购买情报和攻略册。
