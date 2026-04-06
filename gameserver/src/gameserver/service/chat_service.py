@@ -17,9 +17,11 @@ from gameserver.config.settings import Settings
 from gameserver.llm.base import ChatMessage, LLMProvider
 from gameserver.llm.factory import LLMProviderFactory
 from gameserver.db import state_service
+from gameserver.db.chromadb_client import query_combined, COLLECTION_NOVELS
 from gameserver.game.context_builder import build_context, maybe_compress_history
 from gameserver.game.tools import GAME_TOOLS
 from gameserver.game.action_executor import ActionExecutor, ActionResult
+from gameserver.game.scene_classifier import classify_scene, prune_tools, get_rag_entity_type
 
 logger = logging.getLogger(__name__)
 
@@ -73,8 +75,38 @@ class ChatService:
         # Save user message
         await state_service.push_message(player_id, "user", message)
 
-        # Build context (3-layer memory)
-        ctx = await build_context(player_id, message, GAME_TOOLS)
+        # Scene classification for dynamic pruning
+        scene_keywords = self._settings.game.scene_keywords if self._settings.game.scene_keywords else None
+        scene = classify_scene(message, scene_keywords)
+        pruned_tools = prune_tools(GAME_TOOLS, scene)
+
+        # RAG retrieval: query ChromaDB for relevant context
+        rag_chunks = None
+        try:
+            state_for_rag = await state_service.load_player_state(player_id)
+            current_floor = int(state_for_rag.get("current_floor", 1)) if state_for_rag else None
+            rag_entity_type = get_rag_entity_type(scene)
+            from gameserver.db.chromadb_client import query_novels, query_entities
+            # Scene-aware RAG: prioritize relevant entity type
+            novel_chunks = query_novels(message, n_results=3, floor_filter=current_floor)
+            entity_chunks = query_entities(
+                message, n_results=3,
+                entity_type=rag_entity_type,
+                floor_filter=current_floor,
+            )
+            all_rag = []
+            for r in novel_chunks:
+                all_rag.append((r["distance"], f"[小说参考] {r['text']}"))
+            for r in entity_chunks:
+                etype = r["metadata"].get("entity_type", "unknown")
+                all_rag.append((r["distance"], f"[{etype}数据] {r['text']}"))
+            all_rag.sort(key=lambda x: x[0])
+            rag_chunks = [text for _, text in all_rag] or None
+        except Exception as e:
+            logger.warning("RAG query failed (non-fatal): %s", e)
+
+        # Build context (3-layer memory + RAG + pruned tools)
+        ctx = await build_context(player_id, message, pruned_tools, rag_chunks=rag_chunks)
 
         logger.info(
             "Game request: player=%s, provider=%s, msg=%s",

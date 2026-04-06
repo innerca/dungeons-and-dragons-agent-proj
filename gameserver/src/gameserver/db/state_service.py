@@ -79,6 +79,7 @@ async def load_player_state(player_id: str) -> dict:
         "current_floor": str(row["current_floor"]),
         "current_area": row["current_area"],
         "current_location": row["current_location"],
+        "stat_points_available": str(row.get("stat_points_available", 0) or 0),
     }
 
     # Cache to Redis (TTL 2h)
@@ -110,10 +111,18 @@ async def save_player_state(player_id: str, changes: dict) -> None:
         "current_floor": "current_floor",
         "current_area": "current_area",
         "current_location": "current_location",
+        "stat_points_available": "stat_points_available",
+        "stat_str": "stat_str",
+        "stat_agi": "stat_agi",
+        "stat_vit": "stat_vit",
+        "stat_int": "stat_int",
+        "stat_dex": "stat_dex",
+        "stat_luk": "stat_luk",
     }
+    str_fields = ("current_area", "current_location")
     for k, v in changes.items():
         if k in field_map:
-            pg_updates[field_map[k]] = int(v) if k not in ("current_area", "current_location") else v
+            pg_updates[field_map[k]] = v if k in str_fields else int(v)
 
     if pg_updates:
         pool = get_pg()
@@ -173,9 +182,23 @@ async def get_recent_messages(player_id: str, count: int = 20) -> list[dict]:
 
 
 async def get_summary(player_id: str) -> str | None:
-    """Get conversation summary from Redis."""
+    """Get conversation summary from Redis, fallback to PG."""
     r = get_redis()
-    return await r.get(_summary_key(player_id))
+    cached = await r.get(_summary_key(player_id))
+    if cached:
+        return cached
+
+    # PG fallback
+    pool = get_pg()
+    row = await pool.fetchrow(
+        """SELECT summary FROM conversation_summaries
+           WHERE player_id = $1 ORDER BY created_at DESC LIMIT 1""",
+        uuid.UUID(player_id),
+    )
+    if row:
+        await r.set(_summary_key(player_id), row["summary"], ex=14400)
+        return row["summary"]
+    return None
 
 
 async def save_summary(player_id: str, summary: str) -> None:

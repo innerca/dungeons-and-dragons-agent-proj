@@ -15,6 +15,7 @@ from gameserver.config.settings import Settings
 from gameserver.grpc_service.game_servicer import GameServicer
 from gameserver.db.postgres import init_pg, close_pg
 from gameserver.db.redis_client import init_redis, close_redis
+from gameserver.db.chromadb_client import init_chromadb
 
 # Load .env from project root
 from dotenv import load_dotenv
@@ -48,6 +49,13 @@ async def serve() -> None:
         logger.warning(
             "Database connection failed (running without persistence): %s", e
         )
+
+    # Initialize ChromaDB (non-blocking, RAG is optional)
+    try:
+        chromadb_path = os.environ.get("CHROMADB_PATH")
+        init_chromadb(chromadb_path)
+    except Exception as e:
+        logger.warning("ChromaDB init failed (RAG disabled): %s", e)
 
     server = grpc.aio.server()
     game_service_pb2_grpc.add_GameServiceServicer_to_server(

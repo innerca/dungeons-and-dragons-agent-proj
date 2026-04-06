@@ -4,6 +4,8 @@ Token budget (~4700 tokens/request):
   system prompt    ~800  (DM persona + world rules)
   tool definitions ~500  (ReAct tool schemas)
   player state     ~200  (compressed snapshot)
+  quest/npc info   ~200  (active quests + key relationships)
+  combat state     ~100  (current combat if any)
   summary          ~300  (adventure recap)
   RAG chunks       ~800  (ChromaDB retrieval)
   chat history     ~2000 (recent 10-15 turns)
@@ -12,6 +14,7 @@ Token budget (~4700 tokens/request):
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass, field
 
@@ -83,6 +86,75 @@ def _format_state_snapshot(state: dict) -> str:
     )
 
 
+async def _format_quest_snapshot(player_id: str) -> str | None:
+    """Format active quests into a concise context block."""
+    try:
+        from gameserver.game.quest_service import get_active_quests
+        quests = await get_active_quests(player_id)
+    except Exception:
+        return None
+
+    if not quests:
+        return None
+
+    lines = ["[活跃任务]"]
+    for q in quests[:5]:
+        status_icon = "!" if q["status"] == "available" else ">"
+        line = f"  {status_icon} {q['name']}({q['quest_type']}) [{q['status']}]"
+
+        if q["status"] == "active" and q.get("progress"):
+            progress = q["progress"]
+            objectives = q.get("objectives", [])
+            done = sum(1 for k, v in progress.items() if v.get("completed"))
+            total = len(objectives)
+            if total > 0:
+                line += f" ({done}/{total})"
+        lines.append(line)
+
+    return "\n".join(lines)
+
+
+async def _format_combat_snapshot(player_id: str) -> str | None:
+    """Format active combat state into context."""
+    try:
+        from gameserver.game.combat_state import get_combat
+        session = await get_combat(player_id)
+    except Exception:
+        return None
+
+    if not session:
+        return None
+
+    m = session.monster
+    return (
+        f"[战斗中] vs {m.name} — HP {m.hp}/{m.max_hp} | "
+        f"ATK {m.atk} DEF {m.defense} AC {m.ac} | 回合 {session.round_number}"
+    )
+
+
+async def _format_relationship_snapshot(player_id: str) -> str | None:
+    """Format key NPC relationships into context."""
+    try:
+        from gameserver.game.npc_relationship_service import get_all_relationships, get_relationship_tier
+        rels = await get_all_relationships(player_id)
+    except Exception:
+        return None
+
+    if not rels:
+        return None
+
+    active_rels = [r for r in rels if r["interaction_count"] > 0]
+    if not active_rels:
+        return None
+
+    lines = ["[NPC关系]"]
+    for r in active_rels[:6]:
+        tier = get_relationship_tier(r["level"])
+        lines.append(f"  {r['npc_name']}: {tier}({r['level']:+d})")
+
+    return "\n".join(lines)
+
+
 async def build_context(
     player_id: str,
     user_message: str,
@@ -105,7 +177,21 @@ async def build_context(
     # Layer 2: Player state snapshot (from Redis/PG)
     state = await state_service.load_player_state(player_id)
     snapshot = _format_state_snapshot(state)
-    ctx.messages.append({"role": "system", "content": snapshot})
+
+    # Append combat state, active quests, and NPC relationships to snapshot
+    combat_snap = await _format_combat_snapshot(player_id)
+    quest_snap = await _format_quest_snapshot(player_id)
+    rel_snap = await _format_relationship_snapshot(player_id)
+
+    enriched = snapshot
+    if combat_snap:
+        enriched += f"\n{combat_snap}"
+    if quest_snap:
+        enriched += f"\n{quest_snap}"
+    if rel_snap:
+        enriched += f"\n{rel_snap}"
+
+    ctx.messages.append({"role": "system", "content": enriched})
 
     # Layer 3: Conversation summary (compressed old history)
     summary = await state_service.get_summary(player_id)

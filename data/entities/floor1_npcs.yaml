@@ -1,0 +1,161 @@
+# Floor 1 NPC Definitions
+# This file is the source of truth for Floor 1 NPCs.
+# Use manage_game_data.py to sync these to PostgreSQL and ChromaDB.
+#
+# === EXPANSION GUIDE ===
+# To add a new NPC, copy an existing entry and modify:
+#   - id: unique snake_case identifier, prefixed with npc_ (e.g. npc_xxx)
+#   - npc_type: quest_giver | merchant | trainer | companion | faction_leader | info_broker | blacksmith
+#   - faction: dark_elf | forest_elf | dkb | als | independent | fallen_elf
+#   - services_json: depends on npc_type:
+#       merchant:    {shop_type, buy_rate, sell_items:[item_def_ids]}
+#       blacksmith:  {shop_type:"blacksmith", services:["enhance","repair","craft"], enhance_bonus:N}
+#       info_broker: {info_topics:[], pricing:{basic:N, detailed:N, secret:N}}
+#   - dialog_style: example dialogue showing how the NPC speaks
+#   - initial_relationship: -100 to 100
+#
+# Then run: python manage_game_data.py sync npcs
+# This will UPSERT (not recreate) - safe to run repeatedly.
+
+npcs:
+  - id: npc_argo
+    name: 亚鲁戈
+    name_en: Argo
+    npc_type: info_broker
+    floor: 1
+    location: 各层主街区（游荡）
+    faction: independent
+    appearance: >
+      小柄少女，脸颊两侧各有三条胡须状纹路（来源不明），灰黄色连帽斗篷。
+      全敏捷型非战斗系。
+    personality: >
+      精明世故但有底线，绝不出卖封测玩家身份。说话带商人腔调，每句情报都明码标价。
+    dialog_style: "嘿嘿，这条情报嘛……500珂尔。不二价哦，小桐。"
+    services_json:
+      info_topics:
+        - boss_patterns
+        - floor_maps
+        - player_locations
+        - quest_hints
+      pricing:
+        basic: 500
+        detailed: 1000
+        secret: 1500
+      publications:
+        - 攻略册（免费版）
+        - 攻略册（付费版500Col）
+    related_quests_json:
+      - q_f1_argo_info
+    initial_relationship: 10
+    description: >
+      情报贩子「老鼠」亚鲁戈，SAO最大的情报商。编写各层攻略册，经营面对面情报买卖。
+      全AGI型非战斗玩家，跑得极快。绝对原则：绝不出卖封测玩家的真实身份。
+
+  - id: npc_agil
+    name: 艾基尔
+    name_en: Agil
+    npc_type: merchant
+    floor: 1
+    location: 托尔巴纳/各层前线城镇
+    faction: independent
+    appearance: >
+      褐色肌肤光头巨汉，身高190cm，体格壮硕。双手斧使。
+    personality: >
+      理性正义，作为前线攻略者兼商人。为人可靠，是少数不歧视封测玩家的人。
+    dialog_style: "直率坦诚，说话声音洪亮。作为商人时公道合理。"
+    services_json:
+      shop_type: general
+      buy_rate: 0.5
+      sell_items:
+        - potion_heal_low
+        - potion_antidote
+        - material_basic
+    related_quests_json: []
+    initial_relationship: 15
+    description: >
+      双手斧使巨汉艾基尔，前线攻略者兼商人。褐色肌肤，190cm的壮硕身材。
+      理性正义的坦克型玩家，后来在各层前线城镇开设道具店。
+
+  - id: npc_diabel
+    name: 迪亚贝尔
+    name_en: Diabel
+    npc_type: quest_giver
+    floor: 1
+    location: 托尔巴纳·喷水池广场
+    faction: independent
+    appearance: >
+      蓝发骑士风范的青年，穿着骑士铠甲，持长剑和盾牌。
+    personality: >
+      有领袖魅力，自发组织第1层BOSS攻略战。隐瞒自己是封测玩家的身份。
+    dialog_style: "充满激情的领袖式演说风格，试图团结所有玩家。"
+    services_json: {}
+    related_quests_json:
+      - q_f1_boss_raid
+    initial_relationship: 5
+    description: >
+      自称「骑士」的蓝发青年，第1层BOSS攻略战的发起人和指挥官。
+      在喷水池广场召集44人联合部队。实际上是隐瞒身份的封测玩家，企图独占LA奖励。
+      在BOSS战中被伊尔凡古的大刀剑技击杀，成为攻略中首位牺牲的玩家领袖。
+
+  - id: npc_lind
+    name: 凛德
+    name_en: Lind
+    npc_type: faction_leader
+    floor: 1
+    location: 前线城镇
+    faction: dkb
+    appearance: >
+      苍白肌肤，使用弯刀的精英玩家。冷峻外表。
+    personality: >
+      精英主义，追求战力平衡。迪亚贝尔死后接手其队伍成立龙骑士旅团(DKB)。
+    dialog_style: "简洁冷淡，命令式口吻。重效率轻感情。"
+    services_json: {}
+    related_quests_json: []
+    initial_relationship: 0
+    description: >
+      龙骑士旅团(DKB)会长，迪亚贝尔死后接手其攻略队伍。弯刀使，约18人精英团队。
+      主张精英路线，追求战力平衡。代表色蓝色。
+
+  - id: npc_kibaou
+    name: 牙王
+    name_en: Kibaou
+    npc_type: faction_leader
+    floor: 1
+    location: 起始之城/前线城镇
+    faction: als
+    appearance: >
+      刺猬头，中等身材，表情总是不满和愤怒。
+    personality: >
+      对封测玩家有强烈敌意，认为他们独占资源导致新手大量死亡。人海路线领袖。
+    dialog_style: "粗暴直接，经常大声指责封测玩家。煽动性强。"
+    services_json: {}
+    related_quests_json: []
+    initial_relationship: -5
+    description: >
+      艾恩葛朗特解放队(ALS)会长，刺猬头的暴躁玩家。对封测玩家怀有强烈敌意，
+      从起始城镇大量招募和训练新手玩家。代表色暗绿色。人海战术路线。
+
+  - id: npc_nezha
+    name: 涅兹哈
+    name_en: Nezha
+    npc_type: blacksmith
+    floor: 1
+    location: 托尔巴纳
+    faction: independent
+    appearance: >
+      传说勇者公会铁匠，SAO中首位达到实用水平的玩家铁匠。
+    personality: >
+      曾进行强化诈欺（偷换客户武器为相同外观的低级品），被揭发后悔改。技术实力真材实料。
+    dialog_style: "谨慎低调，因过去的诈欺事件而对信任格外珍惜。"
+    services_json:
+      shop_type: blacksmith
+      services:
+        - enhance
+        - repair
+        - craft
+      enhance_bonus: 5
+    related_quests_json: []
+    initial_relationship: -10
+    description: >
+      SAO首位玩家铁匠涅兹哈，隶属传说勇者公会。曾利用强化系统进行诈欺（偷换客户武器），
+      被桐人揭发。技术实力过硬，是前线少数能进行高成功率强化的铁匠。

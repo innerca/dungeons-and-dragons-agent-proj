@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS player_characters (
     current_floor   INTEGER DEFAULT 1,
     current_area    VARCHAR(128) DEFAULT '起始之城',
     current_location VARCHAR(256) DEFAULT '中央广场',
+    stat_points_available INTEGER DEFAULT 0,
     created_at      TIMESTAMPTZ DEFAULT now(),
     updated_at      TIMESTAMPTZ DEFAULT now()
 );
@@ -180,7 +181,15 @@ INSERT INTO sword_skill_definitions (id, name, weapon_type, hit_count, damage_mu
 ('axe_double_cleave', 'Double Cleave', 'one_hand_axe', 2, 2.0, 3.0, 4, '红色特效光连砍两次', '红色特效光，陀螺旋转连砍两次'),
 ('martial_flash_hit', 'Flash Hit', 'martial_arts', 1, 0.8, 1.0, 1, '最快单发拳击', '最快单发拳击，红色光芒。可武装解除'),
 ('martial_crescent_moon', 'Crescent Moon', 'martial_arts', 1, 1.2, 2.0, 3, '后空翻上踢', '后空翻上踢，红色光芒')
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+    name = EXCLUDED.name,
+    weapon_type = EXCLUDED.weapon_type,
+    hit_count = EXCLUDED.hit_count,
+    damage_multiplier = EXCLUDED.damage_multiplier,
+    cooldown_seconds = EXCLUDED.cooldown_seconds,
+    required_level = EXCLUDED.required_level,
+    description = EXCLUDED.description,
+    motion_description = EXCLUDED.motion_description;
 
 -- Seed: 初始物品定义
 INSERT INTO item_definitions (id, name, item_type, rarity, description, is_stackable, max_stack, base_price, weapon_atk, weapon_durability, armor_defense) VALUES
@@ -193,4 +202,14 @@ INSERT INTO item_definitions (id, name, item_type, rarity, description, is_stack
 ('potion_antidote', '解毒药水', 'consumable', 'common', '解除中毒/麻痹状态', true, 99, 150, NULL, NULL, NULL),
 ('crystal_teleport', '转移水晶', 'crystal', 'rare', '瞬间移动至任意已开通转移门', true, 10, 5000, NULL, NULL, NULL),
 ('crystal_heal', '回复水晶', 'crystal', 'legendary', '瞬间回满HP，掉率0.1%', true, 5, 100000, NULL, NULL, NULL)
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+    name = EXCLUDED.name,
+    item_type = EXCLUDED.item_type,
+    rarity = EXCLUDED.rarity,
+    description = EXCLUDED.description,
+    is_stackable = EXCLUDED.is_stackable,
+    max_stack = EXCLUDED.max_stack,
+    base_price = EXCLUDED.base_price,
+    weapon_atk = EXCLUDED.weapon_atk,
+    weapon_durability = EXCLUDED.weapon_durability,
+    armor_defense = EXCLUDED.armor_defense;
