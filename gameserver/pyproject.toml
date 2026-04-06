@@ -1,0 +1,18 @@
+[project]
+name = "gameserver"
+version = "0.1.0"
+description = "DND Game Server - gRPC service with multi-model LLM support"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=0.89.0",
+    "grpcio>=1.80.0",
+    "grpcio-tools>=1.80.0",
+    "openai>=2.30.0",
+    "pydantic-settings>=2.13.1",
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0.3",
+]
+
+[project.scripts]
+gameserver = "gameserver.main:main"
