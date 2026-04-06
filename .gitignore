@@ -15,6 +15,7 @@ build/
 
 # Go
 gateway/gen/
+gateway/gateway
 *.exe
 *.exe~
 *.dll
