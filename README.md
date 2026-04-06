@@ -1,6 +1,6 @@
 # Dungeons & Dragons Agent Project
 
-> **当前版本：v0.300** | [更新日志](#更新日志)
+> **当前版本：v0.400** | [更新日志](#更新日志)
 
 AI 驱动的 DND 游戏项目，基于微服务架构构建。以刀剑神域 Progressive 系列小说为世界观基础，通过 RAG 检索增强生成实现沉浸式游戏体验。
 
@@ -14,16 +14,24 @@ cd dungeons-and-dragons-agent-proj
 # 2. 配置环境变量（填入你的 API Key）
 cp .env.example .env
 # 编辑 .env，填入 DEEPSEEK_API_KEY
+
+# 3. 一键启动（自动检测 Docker / 本地环境）
+make start
+# 或直接：bash scripts/start.sh
+
+# 4. 一键停止
+make stop
 ```
 
 ### 方式一：Docker 一键启动（推荐）
 
 ```bash
-make dev
+make start-docker
+# 或: make dev
 # 浏览器打开 http://localhost:3000
 
 # 停止服务
-make dev-down
+make stop
 
 # 查看日志
 make dev-logs
@@ -74,15 +82,22 @@ make help
 
 ```
                          Docker Compose
-┌──────────────────────────────────────────────────────────┐
-│                                                          │
-│  Frontend (React+TS)  ──nginx──>  Gateway (Go)  ──gRPC──>  GameServer (Python)  -->  LLM API
-│       :3000 (80)                    :8080                      :50051              (DeepSeek)
-│                                                          │
-└──────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                                                                      │
+│  Frontend (React+TS)  ──nginx──>  Gateway (Go)  ──gRPC──>  GameServer (Python)
+│       :3000 (80)                    :8080                      :50051
+│                                      │                           │
+│                                   Redis ◄──────────────────────►│──> LLM API
+│                                    :6379                         │   (DeepSeek)
+│                                                            PostgreSQL
+│                                                              :5432
+└──────────────────────────────────────────────────────────────────────┘
 
-本地开发:
-  Frontend (:5173)  <--WS/SSE-->  Gateway (:8080)  <--gRPC-->  GameServer (:50051)  -->  LLM API
+数据流:
+  Frontend ──WS/SSE──> Gateway ──gRPC──> GameServer ──ReAct──> LLM (工具调用)
+                         │                    │                      │
+                      Redis (Auth)     Redis (缓存/对话)     ActionExecutor
+                                       PG (持久化)            (骰子/伤害计算)
 ```
 
 ## 技术栈
@@ -202,21 +217,40 @@ make verify-vectordb
 
 ```
 .
-├── proto/              # 共享 gRPC 定义
-├── frontend/           # React + TypeScript 前端
-├── gateway/            # Golang 网关
-├── gameserver/         # Python 游戏服务器
-│   └── scripts/        # 数据处理脚本 (小说解析、向量化入库)
+├── proto/              # 共享 gRPC 定义 (5 个 RPC)
+├── frontend/           # React + TypeScript 前端 (登录/注册/角色创建/游戏)
+├── gateway/            # Golang 网关 (Auth 中间件 + REST API)
+├── gameserver/         # Python 游戏服务器 (DND 引擎)
+│   ├── src/gameserver/
+│   │   ├── db/         # PostgreSQL + Redis 连接层
+│   │   ├── game/       # ReAct 引擎 (工具/Action Executor/上下文)
+│   │   ├── llm/        # LLM 提供商 (DeepSeek/OpenAI/Claude)
+│   │   └── service/    # 业务逻辑层
+│   └── scripts/        # 数据库初始化 / 小说解析 / 向量化入库
+├── scripts/            # 一键启动/停止脚本 (含环境检测)
 ├── asset/              # 游戏资源
 │   └── sao/            # SAO Progressive 小说文本 (1-8卷)
 ├── data/               # 游戏设计文档 (世界观设定、系统蓝图、分块策略)
-├── docs/               # 项目文档
-├── docker-compose.yml  # 容器编排
+├── docker-compose.yml  # 容器编排 (PG + Redis + GameServer + Gateway + Frontend)
 ├── Makefile            # 构建命令
 └── VERSION             # 当前版本
 ```
 
 ## 更新日志
+
+### v0.400 (2026-04-06) - DND 游戏引擎 + 全栈重构
+- **基础设施**：Docker Compose 新增 PostgreSQL 16 + Redis 7，数据持久化到 named volumes
+- **数据库**：12 张表完整 DDL（玩家/角色/物品/剑技/任务/NPC关系/对话历史），初始化种子数据（17 把剑技 + 9 件装备）
+- **三层记忆系统**：PostgreSQL 永久存储 → Redis 会话缓存(TTL 2-4h) → LLM Context 窗口(~4700 tokens/请求)
+- **ReAct 引擎**：16 个游戏工具（战斗/移动/交互/角色类）+ Action Executor 五步验证链（权限→前置→资源→计算→写入）
+- **战斗系统**：d20 命中骰 + ATK×倍率伤害公式 + 会心判定 + 异常状态 + 切换机制
+- **认证系统**：Token-based 认证（bcrypt 密码哈希 + Redis token 缓存 24h），Gateway Auth 中间件注入 player_id
+- **Proto 扩展**：5 个 RPC（Chat/CreatePlayer/AuthenticatePlayer/CreateCharacter/GetPlayerState）
+- **Gateway**：新增 REST API（注册/登录/角色创建/状态查询），Auth 中间件保护 WebSocket 和 API
+- **前端**：登录/注册页面 + 角色创建（6 属性分配 10 点）+ 游戏 UI（角色状态栏 + DND 聊天）
+- **LLM 增强**：OpenAI 兼容提供商支持 function calling（chat_with_tools），DM 系统提示词
+- **一键脚本**：`scripts/start.sh`（自动检测 Docker/本地模式，依赖检查）+ `scripts/stop.sh`
+- **对话摘要**：历史消息 > 40 条时自动触发 LLM 压缩，保持上下文窗口精简
 
 ### v0.300 (2026-04-06) - DND 游戏设计文档
 - 新增世界观设定文档（`data/dnd-world-setting.md`）：艾恩葛朗特 1-7 层完整地理、NPC 名录、怪物与 BOSS 图鉴、历史势力、DM 工具箱

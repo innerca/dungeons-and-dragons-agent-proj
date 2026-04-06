@@ -20,9 +20,8 @@ var upgrader = websocket.Upgrader{
 }
 
 type wsMessage struct {
-	Message   string `json:"message"`
-	SessionID string `json:"session_id"`
-	Model     string `json:"model"`
+	Message string `json:"message"`
+	Model   string `json:"model"`
 }
 
 type wsResponse struct {
@@ -92,7 +91,13 @@ func (h *WebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	log.Printf("WebSocket client connected: %s", r.RemoteAddr)
+	// Extract player_id from auth middleware context
+	playerID := ""
+	if pid := r.Context().Value("player_id"); pid != nil {
+		playerID = pid.(string)
+	}
+
+	log.Printf("WebSocket client connected: %s (player=%s)", r.RemoteAddr, playerID)
 
 	for {
 		_, msgBytes, err := conn.ReadMessage()
@@ -121,8 +126,8 @@ func (h *WebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		requestID := h.nextRequestID()
 		ch := h.channels.Create(requestID)
 
-		// Start gRPC streaming call in background
-		go h.streamFromGameServer(requestID, ch, &msg)
+		// Start gRPC streaming call in background with player_id injected
+		go h.streamFromGameServer(requestID, ch, playerID, &msg)
 
 		// Tell client where to listen for SSE
 		resp := wsResponse{
@@ -137,14 +142,15 @@ func (h *WebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *WebSocketHandler) streamFromGameServer(requestID string, ch chan *gamev1.ChatResponse, msg *wsMessage) {
+func (h *WebSocketHandler) streamFromGameServer(requestID string, ch chan *gamev1.ChatResponse, playerID string, msg *wsMessage) {
 	defer close(ch)
 	defer h.channels.Delete(requestID)
 
+	// Gateway injects player_id — frontend cannot forge it
 	req := &gamev1.ChatRequest{
-		SessionId: msg.SessionID,
-		Message:   msg.Message,
-		Model:     msg.Model,
+		PlayerId: playerID,
+		Message:  msg.Message,
+		Model:    msg.Model,
 	}
 
 	stream, err := h.grpcClient.Chat(context.Background(), req)

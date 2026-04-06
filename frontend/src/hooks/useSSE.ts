@@ -8,7 +8,7 @@ export function useSSE() {
   const [error, setError] = useState('');
   const cleanupRef = useRef<(() => void) | null>(null);
 
-  const startStream = useCallback((url: string) => {
+  const startStream = useCallback((url: string, token?: string) => {
     // Cleanup previous stream if any
     cleanupRef.current?.();
 
@@ -30,6 +30,7 @@ export function useSSE() {
         setError(err);
         setIsStreaming(false);
       },
+      token,
     );
 
     cleanupRef.current = cleanup;
