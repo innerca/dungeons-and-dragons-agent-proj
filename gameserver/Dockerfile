@@ -1,17 +1,17 @@
 FROM python:3.12-slim AS builder
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+RUN pip install uv -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 WORKDIR /app
 
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project
+RUN UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple uv sync --frozen --no-dev --no-install-project
 
 COPY src/ src/
 COPY gen/ gen/
 COPY config/ config/
 
-RUN uv sync --frozen --no-dev
+RUN UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple uv sync --frozen --no-dev
 
 FROM python:3.12-slim
 
