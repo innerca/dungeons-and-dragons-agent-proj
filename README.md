@@ -27,13 +27,20 @@ make dev-logs
 **本地开发（不用 Docker）：**
 
 ```bash
-# 生成 gRPC 代码
+# 前置依赖（首次需要）
+# - Go 1.22+, Python 3.12+, Node.js 18+, protoc
+# - uv: curl -LsSf https://astral.sh/uv/install.sh | sh
+# - protoc Go 插件: go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+# - 前端依赖: cd frontend && npm install && cd ..
+# - GameServer 依赖: cd gameserver && uv sync && cd ..
+
+# 生成 gRPC 代码（修改 proto 文件后执行）
 make proto-gen
 
-# 分别启动三个服务
-make dev-gameserver     # Python GameServer :50051
-make dev-gateway        # Go Gateway :8080
-make dev-frontend       # React Frontend :5173
+# 分别在三个终端启动服务（按此顺序）
+make dev-gameserver     # 终端 1: Python GameServer :50051
+make dev-gateway        # 终端 2: Go Gateway :8080
+make dev-frontend       # 终端 3: React Frontend :5173
 # 浏览器打开 http://localhost:5173
 
 # 查看所有可用命令
@@ -97,8 +104,16 @@ make help
 
 ## 环境要求
 
-- Docker & Docker Compose（推荐，一键启动）
-- 或者本地开发需要：Go 1.22+、Python 3.12+、Node.js 18+、uv、protoc
+**Docker 方式（推荐）：**
+- Docker & Docker Compose
+
+**本地开发方式：**
+- Go 1.22+（确保 `$(go env GOPATH)/bin` 在 PATH 中）
+- Python 3.12+
+- Node.js 18+
+- [uv](https://docs.astral.sh/uv/)（Python 包管理）
+- protoc（Protocol Buffers 编译器）
+- protoc-gen-go, protoc-gen-go-grpc（Go gRPC 代码生成插件）
 
 ## 项目结构
 

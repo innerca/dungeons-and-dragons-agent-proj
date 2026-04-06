@@ -2,6 +2,10 @@ PROJECT_ROOT := $(shell pwd)
 PROTO_DIR := $(PROJECT_ROOT)/proto
 GATEWAY_GEN := $(PROJECT_ROOT)/gateway/gen
 GAMESERVER_GEN := $(PROJECT_ROOT)/gameserver/gen
+GOPATH_BIN := $(shell go env GOPATH)/bin
+
+export GO111MODULE=on
+export PATH := $(GOPATH_BIN):$(PATH)
 
 .PHONY: proto-gen proto-go proto-py clean dev dev-down dev-logs help
 
@@ -14,7 +18,7 @@ proto-gen: proto-go proto-py ## Generate all gRPC code
 proto-go: ## Generate Go gRPC code
 	@echo "Generating Go gRPC code..."
 	@mkdir -p $(GATEWAY_GEN)/game/v1
-	protoc \
+	PATH=$(GOPATH_BIN):$$PATH protoc \
 		--proto_path=$(PROTO_DIR) \
 		--go_out=$(GATEWAY_GEN) \
 		--go_opt=paths=source_relative \
@@ -25,7 +29,7 @@ proto-go: ## Generate Go gRPC code
 proto-py: ## Generate Python gRPC code
 	@echo "Generating Python gRPC code..."
 	@mkdir -p $(GAMESERVER_GEN)/game/v1
-	python3 -m grpc_tools.protoc \
+	cd gameserver && uv run python -m grpc_tools.protoc \
 		--proto_path=$(PROTO_DIR) \
 		--python_out=$(GAMESERVER_GEN) \
 		--grpc_python_out=$(GAMESERVER_GEN) \
@@ -48,7 +52,7 @@ dev-logs: ## Tail logs from all Docker Compose services
 	docker compose logs -f
 
 dev-gateway: ## Start Gateway only (local)
-	cd gateway && go run cmd/gateway/main.go
+	cd gateway && GO111MODULE=on go run cmd/gateway/main.go
 
 dev-gameserver: ## Start GameServer only (local)
 	cd gameserver && PYTHONPATH=src:gen uv run python -m gameserver.main
