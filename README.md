@@ -96,6 +96,7 @@ make help
 | 容器化 | Docker Compose |
 | Python 包管理 | uv |
 | LLM | DeepSeek (默认)，支持多模型切换 |
+| 知识库 | ChromaDB + BGE-small-zh (中文向量检索) |
 
 ## 安全原则
 
@@ -132,6 +133,48 @@ make help
 - protoc（Protocol Buffers 编译器）
 - protoc-gen-go, protoc-gen-go-grpc（Go gRPC 代码生成插件）
 
+## 小说知识库（向量数据库）
+
+项目使用 ChromaDB 将刀剑神域 Progressive 系列小说（1-8卷）向量化存储，用于游戏中的 RAG（检索增强生成）。
+
+### 数据源
+
+8 本 SAO Progressive 小说的 TXT 文本，位于 `asset/sao/` 目录，总计约 3.7MB、49,000+ 行。
+
+### 分块策略
+
+- **第一级**：按故事章节（story + section number）严格拆分
+- **第二级**：在章节内按段落边界拆分，每 chunk 约 500-1000 字符，相邻 chunk 间保留 100 字符重叠
+
+### 数据标注
+
+每个 chunk 携带两个维度的 metadata：
+
+| 维度 | 字段 | 说明 |
+|------|------|------|
+| 基础结构 | `volume`, `story_title`, `section_number`, `chunk_index` | 卷号、故事名、节号、chunk 序号 |
+| 游戏世界 | `aincrad_layer`, `in_game_date` | 艾恩葛朗特层数、游戏内时间 |
+
+### 向量数据库配置
+
+- 引擎：ChromaDB（本地持久化）
+- Embedding 模型：BAAI/bge-small-zh-v1.5（中文优化，~90MB）
+- 存储路径：`gameserver/data/chromadb/`（不提交到 git）
+- Collection：`sao_progressive_novels`
+
+### 构建知识库
+
+```bash
+# 安装依赖（首次）
+cd gameserver && uv sync
+
+# 执行向量化入库
+make ingest-novels
+
+# 验证入库结果
+make verify-vectordb
+```
+
 ## 项目结构
 
 ```
@@ -140,7 +183,10 @@ make help
 ├── frontend/           # React + TypeScript 前端
 ├── gateway/            # Golang 网关
 ├── gameserver/         # Python 游戏服务器
-├── asset/              # 游戏资源 (规划中)
+│   └── scripts/        # 数据处理脚本 (小说解析、向量化入库)
+├── asset/              # 游戏资源
+│   └── sao/            # SAO Progressive 小说文本 (1-8卷)
+├── data/               # 项目技术文档
 ├── docs/               # 项目文档
 ├── docker-compose.yml  # 容器编排
 ├── Makefile            # 构建命令
@@ -148,6 +194,12 @@ make help
 ```
 
 ## 更新日志
+
+### v0.200 (2026-04-06) - 小说知识库
+- SAO Progressive 小说（1-8卷）向量化知识库（ChromaDB + BGE-small-zh-v1.5）
+- 小说文本按章节 + 语义两级分块入库，携带基础结构和游戏世界两维度标注
+- 新增 Makefile target: `ingest-novels` / `verify-vectordb`
+- 小说 TXT 文本纳入版本控制，EPUB 文件排除
 
 ### v0.100 (2026-04-06) - 首次发布
 - 完整的项目骨架和目录结构
