@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package game.v1;
+
+option go_package = "github.com/innerca/dungeons-and-dragons-agent-proj/gateway/gen/game/v1;gamev1";
+
+service GameService {
+  // Chat sends a user message and returns a stream of LLM responses
+  rpc Chat(ChatRequest) returns (stream ChatResponse);
+}
+
+message ChatRequest {
+  string session_id = 1;
+  string message = 2;
+  string model = 3;
+}
+
+message ChatResponse {
+  string content = 1;
+  bool is_done = 2;
+  string error = 3;
+}
