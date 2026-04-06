@@ -1,6 +1,8 @@
 # Dungeons & Dragons Agent Project
 
-AI 驱动的 DND 游戏项目，基于微服务架构构建。
+> **当前版本：v0.200** | [更新日志](#更新日志)
+
+AI 驱动的 DND 游戏项目，基于微服务架构构建。以刀剑神域 Progressive 系列小说为世界观基础，通过 RAG 检索增强生成实现沉浸式游戏体验。
 
 ## 快速启动
 
@@ -139,7 +141,18 @@ make help
 
 ### 数据源
 
-8 本 SAO Progressive 小说的 TXT 文本，位于 `asset/sao/` 目录，总计约 3.7MB、49,000+ 行。
+8 本 SAO Progressive 小说的 TXT 文本，位于 `asset/sao/` 目录。
+
+| 卷 | 故事 | 艾恩葛朗特层数 |
+|---|---|---|
+| 1 | 无星夜的咏叹调 / 幻眬剑之回旋曲 | 1-2 层 |
+| 2 | 黑白协奏曲 | 3 层 |
+| 3 | 泡影的船歌 | 4 层 |
+| 4 | 阴沉薄暮的诙谐曲 | 5 层 |
+| 5-6 | 黄金定律的卡农（上/下）| 6 层 |
+| 7-8 | 赤色焦热的狂想曲（上/下）| 7 层 |
+
+入库统计：**101 个章节 / 1605 个 chunks / 8 卷全覆盖**
 
 ### 分块策略
 
@@ -196,9 +209,13 @@ make verify-vectordb
 ## 更新日志
 
 ### v0.200 (2026-04-06) - 小说知识库
-- SAO Progressive 小说（1-8卷）向量化知识库（ChromaDB + BGE-small-zh-v1.5）
-- 小说文本按章节 + 语义两级分块入库，携带基础结构和游戏世界两维度标注
+- SAO Progressive 小说（1-8卷）向量化知识库，101 章节 / 1605 chunks
+- 向量引擎：ChromaDB（本地持久化） + BAAI/bge-small-zh-v1.5 中文 Embedding
+- 两级分块：按章节严格拆分 -> 按段落边界语义拆分（500-1000 字符/chunk，100 字符重叠）
+- 双维度 metadata 标注：基础结构（卷/故事/节/chunk）+ 游戏世界（层数/日期）
+- 新增小说解析与入库脚本（`gameserver/scripts/`）
 - 新增 Makefile target: `ingest-novels` / `verify-vectordb`
+- 新增 PyPI 清华镜像 + HuggingFace 镜像加速配置
 - 小说 TXT 文本纳入版本控制，EPUB 文件排除
 
 ### v0.100 (2026-04-06) - 首次发布
