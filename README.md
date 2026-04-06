@@ -41,7 +41,7 @@ make dev-logs
 > - Gateway: `GOPROXY=https://goproxy.cn,direct`
 > - GameServer: PyPI 清华源 `https://pypi.tuna.tsinghua.edu.cn/simple`
 
-### 方式二：本地开发（不用 Docker）
+### 方式二：本地开发
 
 ```bash
 # 前置依赖（首次需要）
@@ -63,17 +63,6 @@ make dev-frontend       # 终端 3: React Frontend :5173
 # 查看所有可用命令
 make help
 ```
-
-### 为什么本地开发不用 Docker？
-
-本项目日常开发使用本地原生环境（Go / Python venv / Node.js）而非 Docker，原因如下：
-
-1. **热重载速度**：本地 `go run`、`vite dev`、`uv run` 的文件监听和重载是即时的，Docker 卷挂载在 macOS 上存在文件系统通知延迟
-2. **调试体验**：本地环境可以直接使用 IDE 断点调试、attach 进程，不需要配置远程调试协议
-3. **资源占用**：三个容器 + 虚拟机的内存开销远大于三个本地进程
-4. **gRPC 代码生成**：`protoc` 插件链（protoc-gen-go、grpc_tools）在本地执行更直接，不需要在容器内安装额外工具
-
-Docker Compose 用于**一键演示、CI/CD、部署验证**，确保"克隆即可跑"的体验。
 
 ## 项目概述
 
