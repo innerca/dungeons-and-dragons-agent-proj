@@ -1,6 +1,6 @@
 # Dungeons & Dragons Agent Project
 
-> **当前版本：v0.200** | [更新日志](#更新日志)
+> **当前版本：v0.300** | [更新日志](#更新日志)
 
 AI 驱动的 DND 游戏项目，基于微服务架构构建。以刀剑神域 Progressive 系列小说为世界观基础，通过 RAG 检索增强生成实现沉浸式游戏体验。
 
@@ -94,7 +94,7 @@ make help
 | 游戏服务器 | Python + grpcio |
 | 前端通信 | WebSocket (发送) + SSE (接收流式响应) |
 | 服务间通信 | gRPC (服务端流式) |
-| 数据库 | PostgreSQL + Redis (规划中) |
+| 数据库 | PostgreSQL 16 + Redis 7 (规划中) |
 | 容器化 | Docker Compose |
 | Python 包管理 | uv |
 | LLM | DeepSeek (默认)，支持多模型切换 |
@@ -134,6 +134,16 @@ make help
 - [uv](https://docs.astral.sh/uv/)（Python 包管理）
 - protoc（Protocol Buffers 编译器）
 - protoc-gen-go, protoc-gen-go-grpc（Go gRPC 代码生成插件）
+
+## 游戏设计文档
+
+基于 SAO Progressive 1-8 卷小说内容，系统化提取世界观设定和游戏系统规则，作为 DND 游戏引擎的设计基础。
+
+| 文档 | 说明 | 路径 |
+|------|------|------|
+| 世界观设定 | 艾恩葛朗特 1-7 层地理、NPC、怪物、BOSS、历史势力、DM 工具箱 | [`data/dnd-world-setting.md`](data/dnd-world-setting.md) |
+| 游戏系统蓝图 | 任务/角色/战斗/经济/交互系统、持久化设计、记忆架构、ReAct 工具调用、玩家认证 | [`data/dnd-game-system.md`](data/dnd-game-system.md) |
+| 小说分块策略 | 向量化入库的分块规则与 metadata 标注规范 | [`data/dnd-novel-chunking.md`](data/dnd-novel-chunking.md) |
 
 ## 小说知识库（向量数据库）
 
@@ -199,7 +209,7 @@ make verify-vectordb
 │   └── scripts/        # 数据处理脚本 (小说解析、向量化入库)
 ├── asset/              # 游戏资源
 │   └── sao/            # SAO Progressive 小说文本 (1-8卷)
-├── data/               # 项目技术文档
+├── data/               # 游戏设计文档 (世界观设定、系统蓝图、分块策略)
 ├── docs/               # 项目文档
 ├── docker-compose.yml  # 容器编排
 ├── Makefile            # 构建命令
@@ -207,6 +217,15 @@ make verify-vectordb
 ```
 
 ## 更新日志
+
+### v0.300 (2026-04-06) - DND 游戏设计文档
+- 新增世界观设定文档（`data/dnd-world-setting.md`）：艾恩葛朗特 1-7 层完整地理、NPC 名录、怪物与 BOSS 图鉴、历史势力、DM 工具箱
+- 新增游戏系统蓝图（`data/dnd-game-system.md`）：任务/角色成长/战斗/经济/世界交互 五大系统，含完整 PostgreSQL DDL（12 张表）、Redis 缓存设计
+- 系统蓝图包含三层记忆架构设计（PostgreSQL 持久化 + Redis 会话缓存 + LLM Context 窗口）
+- 系统蓝图包含 ReAct 工具调用机制（16 个工具定义 + Action Executor 五步验证链）
+- 系统蓝图包含玩家隔离与认证方案（Token 注入 player_id，前端无法伪造）
+- 刀剑技能体系：SAO Sword Skill → D&D Battle Master Maneuver 映射（Stance→Assist→Delay→Switch）
+- Token 预算规划：system 800 + tools 500 + state 200 + summary 300 + RAG 800 + history 2000 + input 100 ≈ 4700 tokens/请求
 
 ### v0.200 (2026-04-06) - 小说知识库
 - SAO Progressive 小说（1-8卷）向量化知识库，101 章节 / 1605 chunks
