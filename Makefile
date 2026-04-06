@@ -7,7 +7,7 @@ GOPATH_BIN := $(shell go env GOPATH)/bin
 export GO111MODULE=on
 export PATH := $(GOPATH_BIN):$(PATH)
 
-.PHONY: proto-gen proto-go proto-py clean dev dev-down dev-logs help
+.PHONY: proto-gen proto-go proto-py clean dev dev-down dev-logs help ingest-novels verify-vectordb
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
@@ -59,3 +59,9 @@ dev-gameserver: ## Start GameServer only (local)
 
 dev-frontend: ## Start Frontend only (local)
 	cd frontend && npm run dev
+
+ingest-novels: ## Ingest SAO novels into ChromaDB
+	cd gameserver && HF_ENDPOINT=https://hf-mirror.com uv run python -m scripts.ingest_novels
+
+verify-vectordb: ## Verify ChromaDB ingestion results
+	cd gameserver && HF_ENDPOINT=https://hf-mirror.com uv run python -m scripts.verify_vectordb

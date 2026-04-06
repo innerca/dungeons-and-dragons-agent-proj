@@ -46,3 +46,9 @@ Thumbs.db
 
 # Logs
 *.log
+
+# EPUB files (large binary)
+*.epub
+
+# ChromaDB local data
+gameserver/data/
