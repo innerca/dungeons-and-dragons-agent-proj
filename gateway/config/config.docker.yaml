@@ -1,0 +1,20 @@
+server:
+  port: 8080
+  read_timeout: 30s
+  write_timeout: 120s
+
+gameserver:
+  address: "gameserver:50051"
+  timeout: 60s
+
+cors:
+  allowed_origins:
+    - "http://localhost"
+    - "http://localhost:3000"
+  allowed_methods:
+    - "GET"
+    - "POST"
+    - "OPTIONS"
+
+logging:
+  level: "info"

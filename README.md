@@ -9,8 +9,16 @@ This project creates an AI-driven Dungeons & Dragons experience where game logic
 ## Architecture
 
 ```
-Frontend (React+TS)  <--WS/SSE-->  Gateway (Go)  <--gRPC-->  GameServer (Python)  -->  LLM API
-       :5173                          :8080                       :50051              (DeepSeek)
+                         Docker Compose
+┌──────────────────────────────────────────────────────────┐
+│                                                          │
+│  Frontend (React+TS)  ──nginx──>  Gateway (Go)  ──gRPC──>  GameServer (Python)  -->  LLM API
+│       :3000 (80)                    :8080                      :50051              (DeepSeek)
+│                                                          │
+└──────────────────────────────────────────────────────────┘
+
+Local Development:
+  Frontend (:5173)  <--WS/SSE-->  Gateway (:8080)  <--gRPC-->  GameServer (:50051)  -->  LLM API
 ```
 
 ## Tech Stack
@@ -73,12 +81,20 @@ cp .env.example .env
 # 3. Generate gRPC code
 make proto-gen
 
-# 4. Start services (choose one)
-make dev              # Docker Compose (all services)
-# OR start individually:
-make dev-gameserver   # Python GameServer on :50051
-make dev-gateway      # Go Gateway on :8080
-make dev-frontend     # React Frontend on :5173
+# 4a. Docker Compose (recommended)
+make dev                # Build & start all services
+# Visit http://localhost:3000
+
+# 4b. OR start individually (local development)
+make dev-gameserver     # Python GameServer on :50051
+make dev-gateway        # Go Gateway on :8080
+make dev-frontend       # React Frontend on :5173
+# Visit http://localhost:5173
+
+# Other commands
+make dev-down           # Stop Docker Compose services
+make dev-logs           # Tail Docker Compose logs
+make help               # Show all available commands
 ```
 
 ## Project Structure
@@ -101,7 +117,10 @@ make dev-frontend     # React Frontend on :5173
 ### v0.100 (2026-04-06) - Initial Release
 - Project skeleton with complete directory structure
 - gRPC proto definitions (GameService with streaming Chat RPC)
-- Makefile for proto generation and service orchestration
+- Python GameServer with multi-model LLM support (DeepSeek, OpenAI, Anthropic)
+- Go Gateway with WebSocket + SSE + gRPC client
+- React + TypeScript frontend with chat UI and streaming output
+- Docker Compose with multi-stage builds (GameServer, Gateway, Frontend+nginx)
+- End-to-end verified: Frontend -> WS -> Gateway -> gRPC -> GameServer -> DeepSeek -> SSE stream
 - Security principles and architecture documentation
-- Docker Compose configuration (planned)
-- Multi-model LLM support architecture (DeepSeek default)
+- Makefile for proto generation and service orchestration

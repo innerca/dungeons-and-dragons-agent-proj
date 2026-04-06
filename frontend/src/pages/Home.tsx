@@ -13,8 +13,9 @@ interface ChatMessage {
   error: string;
 }
 
-const WS_URL = `ws://${window.location.hostname}:8080/ws`;
-const API_BASE = `http://${window.location.hostname}:8080`;
+const GATEWAY_HOST = import.meta.env.VITE_GATEWAY_HOST || `${window.location.hostname}:8080`;
+const WS_URL = `ws://${GATEWAY_HOST}/ws`;
+const API_BASE = `http://${GATEWAY_HOST}`;
 
 export function Home() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);

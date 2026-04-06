@@ -3,7 +3,7 @@ PROTO_DIR := $(PROJECT_ROOT)/proto
 GATEWAY_GEN := $(PROJECT_ROOT)/gateway/gen
 GAMESERVER_GEN := $(PROJECT_ROOT)/gameserver/gen
 
-.PHONY: proto-gen proto-go proto-py clean dev help
+.PHONY: proto-gen proto-go proto-py clean dev dev-down dev-logs help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
@@ -38,14 +38,20 @@ clean: ## Clean generated files
 	rm -rf $(GATEWAY_GEN)/game
 	rm -rf $(GAMESERVER_GEN)/game
 
-dev: ## Start all services locally via Docker Compose
-	docker-compose up --build
+dev: ## Start all services via Docker Compose
+	docker compose up --build
+
+dev-down: ## Stop all Docker Compose services
+	docker compose down
+
+dev-logs: ## Tail logs from all Docker Compose services
+	docker compose logs -f
 
 dev-gateway: ## Start Gateway only (local)
 	cd gateway && go run cmd/gateway/main.go
 
 dev-gameserver: ## Start GameServer only (local)
-	cd gameserver && uv run python -m gameserver.main
+	cd gameserver && PYTHONPATH=src:gen uv run python -m gameserver.main
 
 dev-frontend: ## Start Frontend only (local)
 	cd frontend && npm run dev

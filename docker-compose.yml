@@ -1,0 +1,39 @@
+services:
+  gameserver:
+    build:
+      context: ./gameserver
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "50051:50051"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import grpc; ch=grpc.insecure_channel(\"localhost:50051\"); grpc.channel_ready_future(ch).result(timeout=2)'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    environment:
+      GATEWAY_CONFIG: config/config.docker.yaml
+    ports:
+      - "8080:8080"
+    depends_on:
+      gameserver:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - gateway
+    restart: unless-stopped
