@@ -13,6 +13,8 @@ from game.v1 import game_service_pb2_grpc
 
 from gameserver.config.settings import Settings
 from gameserver.grpc_service.game_servicer import GameServicer
+from gameserver.db.postgres import init_pg, close_pg
+from gameserver.db.redis_client import init_redis, close_redis
 
 # Load .env from project root
 from dotenv import load_dotenv
@@ -32,6 +34,20 @@ async def serve() -> None:
         str(Path(__file__).parent.parent.parent / "config" / "config.yaml"),
     )
     settings = Settings.load(config_path)
+
+    # Initialize database connections
+    database_url = os.environ.get(
+        "DATABASE_URL", "postgresql://sao:sao_dev_password@localhost:5432/sao_game"
+    )
+    redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+
+    try:
+        await init_pg(database_url)
+        await init_redis(redis_url)
+    except Exception as e:
+        logger.warning(
+            "Database connection failed (running without persistence): %s", e
+        )
 
     server = grpc.aio.server()
     game_service_pb2_grpc.add_GameServiceServicer_to_server(
@@ -62,6 +78,8 @@ async def serve() -> None:
 
     logger.info("Shutting down gracefully...")
     await server.stop(grace=5)
+    await close_pg()
+    await close_redis()
     logger.info("GameServer stopped")
 
 

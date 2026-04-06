@@ -3,7 +3,8 @@ import { useWebSocket } from '../hooks/useWebSocket';
 import { useSSE } from '../hooks/useSSE';
 import { ChatInput } from '../components/ChatInput';
 import { StreamingOutput } from '../components/StreamingOutput';
-import type { WSResponse } from '../types';
+import type { WSResponse, PlayerState } from '../types';
+import { getPlayerState, API_BASE } from '../services/api';
 
 interface ChatMessage {
   id: string;
@@ -14,16 +15,27 @@ interface ChatMessage {
 }
 
 const GATEWAY_HOST = import.meta.env.VITE_GATEWAY_HOST || `${window.location.hostname}:8080`;
-const WS_URL = `ws://${GATEWAY_HOST}/ws`;
-const API_BASE = `http://${GATEWAY_HOST}`;
 
-export function Home() {
+interface Props {
+  onLogout: () => void;
+}
+
+export function Home({ onLogout }: Props) {
+  const token = localStorage.getItem('token') || '';
+  const WS_URL = `ws://${GATEWAY_HOST}/ws?token=${token}`;
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [model, setModel] = useState('deepseek');
+  const [playerState, setPlayerState] = useState<PlayerState | null>(null);
   const { status, lastMessage, send } = useWebSocket(WS_URL);
   const { streamingText, isStreaming, error, startStream } = useSSE();
   const chatEndRef = useRef<HTMLDivElement>(null);
   const activeIdRef = useRef<string>('');
+
+  // Load player state
+  useEffect(() => {
+    getPlayerState().then(setPlayerState).catch(() => {});
+  }, []);
 
   // Handle WS response (receive request_id + sse_url)
   useEffect(() => {
@@ -35,11 +47,11 @@ export function Home() {
         ...prev,
         { id: resp.request_id, text: '', isUser: false, isStreaming: true, error: '' },
       ]);
-      startStream(API_BASE + resp.sse_url);
+      startStream(API_BASE + resp.sse_url, token);
     } catch {
       // ignore
     }
-  }, [lastMessage, startStream]);
+  }, [lastMessage, startStream, token]);
 
   // Update streaming message text
   useEffect(() => {
@@ -50,6 +62,10 @@ export function Home() {
         m.id === id ? { ...m, text: streamingText, isStreaming, error } : m,
       ),
     );
+    // Refresh state after response completes
+    if (!isStreaming && streamingText) {
+      getPlayerState().then(setPlayerState).catch(() => {});
+    }
   }, [streamingText, isStreaming, error]);
 
   // Auto-scroll
@@ -67,7 +83,7 @@ export function Home() {
         error: '',
       };
       setMessages((prev) => [...prev, userMsg]);
-      send(JSON.stringify({ message, session_id: 'default', model }));
+      send(JSON.stringify({ message, model }));
     },
     [send, model],
   );
@@ -76,8 +92,14 @@ export function Home() {
     <div className="app">
       <header className="header">
         <div className="header-left">
-          <h1>Sword Art Online - DND</h1>
-          <span className="subtitle">Weather Query Demo (MVP)</span>
+          <h1>SAO Progressive DND</h1>
+          {playerState && playerState.character_name && (
+            <span className="subtitle">
+              {playerState.character_name} Lv.{playerState.level} |
+              HP {playerState.current_hp}/{playerState.max_hp} |
+              Floor {playerState.current_floor} - {playerState.current_area}
+            </span>
+          )}
         </div>
         <div className="header-right">
           <select value={model} onChange={(e) => setModel(e.target.value)}>
@@ -88,12 +110,16 @@ export function Home() {
           <span className={`status ${status}`}>
             {status === 'connected' ? 'Connected' : status === 'connecting' ? 'Connecting...' : 'Disconnected'}
           </span>
+          <button className="logout-btn" onClick={onLogout}>Logout</button>
         </div>
       </header>
 
       <div className="chat-area">
         {messages.length === 0 && (
-          <div className="empty-state">Ask me about the weather anywhere in the world</div>
+          <div className="empty-state">
+            Welcome to Aincrad. You stand in the Town of Beginnings on Floor 1.
+            What would you like to do?
+          </div>
         )}
         {messages.map((msg) => (
           <StreamingOutput
@@ -110,7 +136,9 @@ export function Home() {
       <ChatInput onSend={handleSend} disabled={status !== 'connected' || isStreaming} />
 
       <footer className="footer">
-        <span>WS: {WS_URL}</span>
+        <span>
+          {playerState ? `Col: ${playerState.col} | ${playerState.current_location}` : ''}
+        </span>
         <span>Gateway :8080 | GameServer :50051 (gRPC)</span>
       </footer>
     </div>

@@ -5,12 +5,26 @@ package game.v1;
 option go_package = "github.com/innerca/dungeons-and-dragons-agent-proj/gateway/gen/game/v1;gamev1";
 
 service GameService {
-  // Chat sends a user message and returns a stream of LLM responses
+  // Chat sends a user message and returns a stream of DND game responses
   rpc Chat(ChatRequest) returns (stream ChatResponse);
+
+  // Player registration
+  rpc CreatePlayer(CreatePlayerRequest) returns (CreatePlayerResponse);
+
+  // Player authentication
+  rpc AuthenticatePlayer(AuthRequest) returns (AuthResponse);
+
+  // Character creation
+  rpc CreateCharacter(CreateCharacterRequest) returns (CreateCharacterResponse);
+
+  // Get current player state
+  rpc GetPlayerState(GetPlayerStateRequest) returns (PlayerStateResponse);
 }
 
+// --- Chat ---
+
 message ChatRequest {
-  string session_id = 1;
+  string player_id = 1;
   string message = 2;
   string model = 3;
 }
@@ -19,4 +33,93 @@ message ChatResponse {
   string content = 1;
   bool is_done = 2;
   string error = 3;
+  repeated GameAction actions = 4;
+  PlayerStateDelta state_delta = 5;
+}
+
+message GameAction {
+  string action_type = 1;
+  string description = 2;
+  map<string, string> params = 3;
+  bool success = 4;
+  string result_summary = 5;
+}
+
+message PlayerStateDelta {
+  int32 hp_change = 1;
+  int32 xp_change = 2;
+  int32 col_change = 3;
+  repeated string items_gained = 4;
+  repeated string items_lost = 5;
+  string new_location = 6;
+  bool level_up = 7;
+}
+
+// --- Auth ---
+
+message CreatePlayerRequest {
+  string username = 1;
+  string display_name = 2;
+  string password = 3;
+}
+
+message CreatePlayerResponse {
+  string player_id = 1;
+  string token = 2;
+  string error = 3;
+}
+
+message AuthRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message AuthResponse {
+  string player_id = 1;
+  string token = 2;
+  string error = 3;
+}
+
+// --- Character ---
+
+message CreateCharacterRequest {
+  string player_id = 1;
+  string name = 2;
+  int32 stat_str = 3;
+  int32 stat_agi = 4;
+  int32 stat_vit = 5;
+  int32 stat_int = 6;
+  int32 stat_dex = 7;
+  int32 stat_luk = 8;
+}
+
+message CreateCharacterResponse {
+  string character_id = 1;
+  string error = 2;
+}
+
+// --- Player State ---
+
+message GetPlayerStateRequest {
+  string player_id = 1;
+}
+
+message PlayerStateResponse {
+  string character_name = 1;
+  int32 level = 2;
+  int32 current_hp = 3;
+  int32 max_hp = 4;
+  int64 experience = 5;
+  int64 exp_to_next = 6;
+  int32 stat_str = 7;
+  int32 stat_agi = 8;
+  int32 stat_vit = 9;
+  int32 stat_int = 10;
+  int32 stat_dex = 11;
+  int32 stat_luk = 12;
+  int64 col = 13;
+  int32 current_floor = 14;
+  string current_area = 15;
+  string current_location = 16;
+  string error = 17;
 }

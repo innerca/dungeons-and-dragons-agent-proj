@@ -1,5 +1,6 @@
 import logging
 from collections.abc import AsyncIterator
+from typing import Any
 
 from openai import AsyncOpenAI
 
@@ -19,10 +20,13 @@ class OpenAICompatibleProvider(LLMProvider):
             base_url=config.base_url if config.base_url else None,
         )
 
+    def _format_messages(self, messages: list[ChatMessage]) -> list[dict]:
+        return [{"role": m.role, "content": m.content} for m in messages]
+
     async def stream_chat(
         self, messages: list[ChatMessage]
     ) -> AsyncIterator[str]:
-        msgs = [{"role": m.role, "content": m.content} for m in messages]
+        msgs = self._format_messages(messages)
         stream = await self._client.chat.completions.create(
             model=self._config.model,
             messages=msgs,
@@ -36,7 +40,7 @@ class OpenAICompatibleProvider(LLMProvider):
                 yield delta.content
 
     async def chat(self, messages: list[ChatMessage]) -> str:
-        msgs = [{"role": m.role, "content": m.content} for m in messages]
+        msgs = self._format_messages(messages)
         response = await self._client.chat.completions.create(
             model=self._config.model,
             messages=msgs,
@@ -44,3 +48,17 @@ class OpenAICompatibleProvider(LLMProvider):
             temperature=self._config.temperature,
         )
         return response.choices[0].message.content or ""
+
+    async def chat_with_tools(
+        self, messages: list[ChatMessage], tools: list[dict]
+    ) -> Any:
+        """Call LLM with function/tool definitions for ReAct."""
+        msgs = self._format_messages(messages)
+        response = await self._client.chat.completions.create(
+            model=self._config.model,
+            messages=msgs,
+            tools=tools if tools else None,
+            max_tokens=self._config.max_tokens,
+            temperature=self._config.temperature,
+        )
+        return response.choices[0].message

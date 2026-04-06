@@ -7,11 +7,27 @@ GOPATH_BIN := $(shell go env GOPATH)/bin
 export GO111MODULE=on
 export PATH := $(GOPATH_BIN):$(PATH)
 
-.PHONY: proto-gen proto-go proto-py clean dev dev-down dev-logs help ingest-novels verify-vectordb
+.PHONY: proto-gen proto-go proto-py clean dev dev-down dev-logs help ingest-novels verify-vectordb start stop db-init
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+# --- One-click scripts ---
+
+start: ## Start all services (auto-detect Docker/local)
+	bash scripts/start.sh
+
+stop: ## Stop all services
+	bash scripts/stop.sh
+
+start-docker: ## Start via Docker Compose
+	bash scripts/start.sh docker
+
+start-local: ## Start in local development mode
+	bash scripts/start.sh local
+
+# --- Proto generation ---
 
 proto-gen: proto-go proto-py ## Generate all gRPC code
 
@@ -42,6 +58,8 @@ clean: ## Clean generated files
 	rm -rf $(GATEWAY_GEN)/game
 	rm -rf $(GAMESERVER_GEN)/game
 
+# --- Docker ---
+
 dev: ## Start all services via Docker Compose
 	docker compose up --build
 
@@ -51,14 +69,23 @@ dev-down: ## Stop all Docker Compose services
 dev-logs: ## Tail logs from all Docker Compose services
 	docker compose logs -f
 
+# --- Local dev (individual services) ---
+
 dev-gateway: ## Start Gateway only (local)
-	cd gateway && GO111MODULE=on go run cmd/gateway/main.go
+	cd gateway && REDIS_URL=redis://localhost:6379/0 GO111MODULE=on go run cmd/gateway/main.go
 
 dev-gameserver: ## Start GameServer only (local)
-	cd gameserver && PYTHONPATH=src:gen uv run python -m gameserver.main
+	cd gameserver && PYTHONPATH=src:gen DATABASE_URL=postgresql://sao:sao_dev_password@localhost:5432/sao_game REDIS_URL=redis://localhost:6379/0 uv run python -m gameserver.main
 
 dev-frontend: ## Start Frontend only (local)
 	cd frontend && npm run dev
+
+# --- Database ---
+
+db-init: ## Initialize database schema (requires running PostgreSQL)
+	PGPASSWORD=sao_dev_password psql -h localhost -U sao -d sao_game -f gameserver/scripts/init_db.sql
+
+# --- Knowledge base ---
 
 ingest-novels: ## Ingest SAO novels into ChromaDB
 	cd gameserver && HF_ENDPOINT=https://hf-mirror.com uv run python -m scripts.ingest_novels

@@ -38,6 +38,22 @@ func (c *Client) Chat(ctx context.Context, req *gamev1.ChatRequest) (gamev1.Game
 	return c.client.Chat(ctx, req)
 }
 
+func (c *Client) CreatePlayer(ctx context.Context, req *gamev1.CreatePlayerRequest) (*gamev1.CreatePlayerResponse, error) {
+	return c.client.CreatePlayer(ctx, req)
+}
+
+func (c *Client) AuthenticatePlayer(ctx context.Context, req *gamev1.AuthRequest) (*gamev1.AuthResponse, error) {
+	return c.client.AuthenticatePlayer(ctx, req)
+}
+
+func (c *Client) CreateCharacter(ctx context.Context, req *gamev1.CreateCharacterRequest) (*gamev1.CreateCharacterResponse, error) {
+	return c.client.CreateCharacter(ctx, req)
+}
+
+func (c *Client) GetPlayerState(ctx context.Context, req *gamev1.GetPlayerStateRequest) (*gamev1.PlayerStateResponse, error) {
+	return c.client.GetPlayerState(ctx, req)
+}
+
 func (c *Client) Close() error {
 	return c.conn.Close()
 }
