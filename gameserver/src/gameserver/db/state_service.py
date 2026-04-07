@@ -6,28 +6,34 @@ import json
 import logging
 import uuid
 
+from gameserver.config.settings import get_settings
 from gameserver.db.postgres import get_pg
 from gameserver.db.redis_client import get_redis
 
 logger = logging.getLogger(__name__)
 
+
 # Redis key helpers
+def _key_prefix() -> str:
+    return get_settings().redis.key_prefix
+
 def _state_key(pid: str) -> str:
-    return f"sao:player:{pid}:state"
+    return f"{_key_prefix()}:player:{pid}:state"
 
 def _history_key(pid: str) -> str:
-    return f"sao:player:{pid}:chat:history"
+    return f"{_key_prefix()}:player:{pid}:chat:history"
 
 def _summary_key(pid: str) -> str:
-    return f"sao:player:{pid}:chat:summary"
+    return f"{_key_prefix()}:player:{pid}:chat:summary"
 
 def _auth_key(token: str) -> str:
-    return f"sao:auth:token:{token}"
+    return f"{_key_prefix()}:auth:token:{token}"
 
 
-async def store_auth_token(token: str, player_id: str, ttl: int = 86400) -> None:
-    """Store auth token → player_id mapping in Redis (TTL 24h)."""
+async def store_auth_token(token: str, player_id: str) -> None:
+    """Store auth token -> player_id mapping in Redis."""
     r = get_redis()
+    ttl = get_settings().cache.auth_token_ttl
     await r.set(_auth_key(token), player_id, ex=ttl)
 
 
@@ -82,9 +88,10 @@ async def load_player_state(player_id: str) -> dict:
         "stat_points_available": str(row.get("stat_points_available", 0) or 0),
     }
 
-    # Cache to Redis (TTL 2h)
+    # Cache to Redis
+    state_ttl = get_settings().cache.state_ttl
     await r.hset(key, mapping=state)
-    await r.expire(key, 7200)
+    await r.expire(key, state_ttl)
 
     return state
 
@@ -93,11 +100,12 @@ async def save_player_state(player_id: str, changes: dict) -> None:
     """Write-Through: update Redis immediately, async persist to PG."""
     r = get_redis()
     key = _state_key(player_id)
+    state_ttl = get_settings().cache.state_ttl
 
     # Update Redis
     if changes:
         await r.hset(key, mapping={k: str(v) for k, v in changes.items()})
-        await r.expire(key, 7200)
+        await r.expire(key, state_ttl)
 
     # Persist to PG (sync for now, can be made async later)
     pg_updates = {}
@@ -136,11 +144,12 @@ async def save_player_state(player_id: str, changes: dict) -> None:
 async def push_message(player_id: str, role: str, content: str) -> int:
     """Push a message to Redis chat history. Returns current length."""
     r = get_redis()
+    cache_cfg = get_settings().cache
     key = _history_key(player_id)
     msg = json.dumps({"role": role, "content": content}, ensure_ascii=False)
     await r.lpush(key, msg)
-    await r.ltrim(key, 0, 49)  # Keep max 50 messages
-    await r.expire(key, 14400)  # TTL 4h
+    await r.ltrim(key, 0, cache_cfg.max_stored_messages - 1)
+    await r.expire(key, cache_cfg.history_ttl)
     length = await r.llen(key)
 
     # Also persist to PG
@@ -157,6 +166,7 @@ async def push_message(player_id: str, role: str, content: str) -> int:
 async def get_recent_messages(player_id: str, count: int = 20) -> list[dict]:
     """Get recent messages from Redis (newest first, reversed to chronological)."""
     r = get_redis()
+    cache_cfg = get_settings().cache
     key = _history_key(player_id)
     raw = await r.lrange(key, 0, count - 1)
 
@@ -173,8 +183,8 @@ async def get_recent_messages(player_id: str, count: int = 20) -> list[dict]:
         if messages:
             for msg in messages:
                 await r.lpush(key, json.dumps(msg, ensure_ascii=False))
-            await r.ltrim(key, 0, 49)
-            await r.expire(key, 14400)
+            await r.ltrim(key, 0, cache_cfg.max_stored_messages - 1)
+            await r.expire(key, cache_cfg.history_ttl)
         return list(reversed(messages))
 
     messages = [json.loads(m) for m in raw]
@@ -184,6 +194,7 @@ async def get_recent_messages(player_id: str, count: int = 20) -> list[dict]:
 async def get_summary(player_id: str) -> str | None:
     """Get conversation summary from Redis, fallback to PG."""
     r = get_redis()
+    summary_ttl = get_settings().cache.summary_ttl
     cached = await r.get(_summary_key(player_id))
     if cached:
         return cached
@@ -196,7 +207,7 @@ async def get_summary(player_id: str) -> str | None:
         uuid.UUID(player_id),
     )
     if row:
-        await r.set(_summary_key(player_id), row["summary"], ex=14400)
+        await r.set(_summary_key(player_id), row["summary"], ex=summary_ttl)
         return row["summary"]
     return None
 
@@ -204,7 +215,8 @@ async def get_summary(player_id: str) -> str | None:
 async def save_summary(player_id: str, summary: str) -> None:
     """Save conversation summary to Redis and PG."""
     r = get_redis()
-    await r.set(_summary_key(player_id), summary, ex=14400)
+    summary_ttl = get_settings().cache.summary_ttl
+    await r.set(_summary_key(player_id), summary, ex=summary_ttl)
 
     pool = get_pg()
     await pool.execute(

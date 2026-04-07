@@ -18,6 +18,14 @@ type GameServerConfig struct {
 	Timeout time.Duration `yaml:"timeout"`
 }
 
+type SSEConfig struct {
+	Timeout time.Duration `yaml:"timeout"`
+}
+
+type RedisAuthConfig struct {
+	AuthKeyPrefix string `yaml:"auth_key_prefix"`
+}
+
 type CORSConfig struct {
 	AllowedOrigins []string `yaml:"allowed_origins"`
 	AllowedMethods []string `yaml:"allowed_methods"`
@@ -30,6 +38,8 @@ type LoggingConfig struct {
 type Config struct {
 	Server     ServerConfig     `yaml:"server"`
 	GameServer GameServerConfig `yaml:"gameserver"`
+	SSE        SSEConfig        `yaml:"sse"`
+	Redis      RedisAuthConfig  `yaml:"redis"`
 	CORS       CORSConfig       `yaml:"cors"`
 	Logging    LoggingConfig    `yaml:"logging"`
 }
@@ -49,6 +59,12 @@ func Load(path string) (*Config, error) {
 		GameServer: GameServerConfig{
 			Address: "localhost:50051",
 			Timeout: 60 * time.Second,
+		},
+		SSE: SSEConfig{
+			Timeout: 120 * time.Second,
+		},
+		Redis: RedisAuthConfig{
+			AuthKeyPrefix: "sao:auth:token:",
 		},
 	}
 

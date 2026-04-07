@@ -10,6 +10,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./gameserver/scripts/init_db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./gameserver/scripts/migrations/v0500_schema.sql:/docker-entrypoint-initdb.d/02-v0500.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U sao -d sao_game"]
       interval: 5s
@@ -41,8 +42,12 @@ services:
     environment:
       DATABASE_URL: postgresql://sao:${POSTGRES_PASSWORD:-sao_dev_password}@postgres:5432/sao_game
       REDIS_URL: redis://redis:6379/0
+      HF_ENDPOINT: https://hf-mirror.com
+      HF_HOME: /app/data/hf_cache
     ports:
       - "50051:50051"
+    volumes:
+      - hf_cache:/app/data/hf_cache
     depends_on:
       postgres:
         condition: service_healthy
@@ -50,10 +55,10 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "python -c 'import grpc; ch=grpc.insecure_channel(\"localhost:50051\"); grpc.channel_ready_future(ch).result(timeout=2)'"]
-      interval: 10s
+      interval: 15s
       timeout: 5s
-      retries: 5
-      start_period: 15s
+      retries: 30
+      start_period: 300s
     restart: unless-stopped
 
   gateway:
@@ -85,3 +90,4 @@ services:
 volumes:
   pgdata:
   redisdata:
+  hf_cache:

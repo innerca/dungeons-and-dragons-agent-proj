@@ -3,6 +3,8 @@
 import asyncpg
 import logging
 
+from gameserver.config.settings import get_settings
+
 logger = logging.getLogger(__name__)
 
 _pool: asyncpg.Pool | None = None
@@ -13,14 +15,15 @@ async def init_pg(database_url: str) -> asyncpg.Pool:
     global _pool
     if _pool is not None:
         return _pool
+    db_cfg = get_settings().database
     logger.info("Connecting to PostgreSQL...")
     _pool = await asyncpg.create_pool(
         database_url,
-        min_size=2,
-        max_size=10,
-        command_timeout=30,
+        min_size=db_cfg.pg_min_size,
+        max_size=db_cfg.pg_max_size,
+        command_timeout=db_cfg.pg_command_timeout,
     )
-    logger.info("PostgreSQL pool created (min=2, max=10)")
+    logger.info("PostgreSQL pool created (min=%d, max=%d)", db_cfg.pg_min_size, db_cfg.pg_max_size)
     return _pool
 
 

@@ -1,7 +1,7 @@
 import type { AuthResponse, PlayerState } from '../types';
 
-const GATEWAY_HOST = import.meta.env.VITE_GATEWAY_HOST || `${window.location.hostname}:8080`;
-export const API_BASE = `http://${GATEWAY_HOST}`;
+const GATEWAY_HOST = import.meta.env.VITE_GATEWAY_HOST || '';
+export const API_BASE = GATEWAY_HOST ? `http://${GATEWAY_HOST}` : '';
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('token');

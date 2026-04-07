@@ -1,6 +1,23 @@
 server:
   grpc_port: 50051
 
+# ─── Database & Cache ───
+database:
+  pg_min_size: 2
+  pg_max_size: 10
+  pg_command_timeout: 30
+
+redis:
+  max_connections: 20
+  key_prefix: "sao"                     # Redis key namespace: {prefix}:player:xxx
+
+cache:
+  auth_token_ttl: 86400                 # 24h
+  state_ttl: 7200                       # 2h
+  history_ttl: 14400                    # 4h
+  summary_ttl: 14400                    # 4h
+  max_stored_messages: 50               # Redis LTRIM cap
+
 llm:
   default_provider: "deepseek"
   providers:
@@ -53,6 +70,18 @@ game:
     critical_weak_per_accuracy: 0.02    # +2% per accuracy bonus
     critical_true_base: 0.01            # 1% base true crit
     critical_true_luk_divisor: 200      # +LUK/200
+    defense_reduction_factor: 0.6       # defense * factor subtracted from damage
+    damage_variance_min: 0.9
+    damage_variance_max: 1.1
+    str_scaling_divisor: 100            # base_dmg * (1 + STR / divisor)
+    bare_hands_atk: 10
+    crit_multiplier: 1.5
+    flee_dc: 12                         # d20+AGI >= dc to flee
+    generic_monster:                     # fallback when monster not in DB
+      hp: 100
+      atk: 15
+      defense: 5
+      ac: 10
 
   # Leveling
   leveling:
@@ -67,6 +96,49 @@ game:
   economy:
     starting_col: 500
     npc_buy_rate: 0.5                   # NPC pays 50% of base_price
+    potion_heal_amount: 100
+
+  # Encounter (random enemy in the wild)
+  encounter:
+    rate: 0.25                          # 25% chance per move
+    max_count: 3                        # 1~N enemies per encounter
+    safe_areas:
+      - 起始之城
+      - 城镇
+      - 旅馆
+      - 商店
+      - 广场
+      - 转移门
+      - 酒馆
+
+  # Teleport / floor map
+  floor:
+    max_floor: 7
+    floor_areas:
+      1: "起始之城"
+      2: "乌尔巴斯"
+      3: "兹姆福特"
+      4: "罗毕亚"
+      5: "卡尔路因"
+      6: "史塔基翁"
+      7: "窝鲁布达"
+
+  # Rest & recovery
+  rest:
+    short_rest_recovery_rate: 0.25      # recover 25% of max_hp
+
+  # NPC relationship system
+  relationship:
+    min_level: -100
+    max_level: 100
+    tiers:
+      - { min: 80,  label: "挚友" }
+      - { min: 50,  label: "亲密" }
+      - { min: 20,  label: "友好" }
+      - { min: 0,   label: "中立" }
+      - { min: -30, label: "冷淡" }
+      - { min: -60, label: "敌对" }
+      - { min: -100, label: "仇恨" }
 
   # Scene detection keywords (for dynamic context pruning)
   scene_keywords:

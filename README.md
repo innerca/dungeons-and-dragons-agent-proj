@@ -1,6 +1,6 @@
 # Dungeons & Dragons Agent Project
 
-> **当前版本：v0.500** | [更新日志](#更新日志)
+> **当前版本：v0.5001** | [更新日志](#更新日志)
 
 AI 驱动的 DND 游戏项目，基于微服务架构构建。以刀剑神域 Progressive 系列小说为世界观基础，通过 RAG 检索增强生成实现沉浸式游戏体验。
 
@@ -251,6 +251,23 @@ make verify-vectordb
 ```
 
 ## 更新日志
+
+### v0.5001 (2026-04-07) - Bug 修复 + 全面配置化
+
+**Bug 修复**
+- 修复 OpenAI API `missing field tool_call_id` 400 错误：`ChatMessage` 构建和序列化链路中补全 `tool_calls`/`tool_call_id` 字段透传
+- 修复 Docker 启动失败：GameServer 健康检查窗口不足（SentenceTransformer 首次需下载 ~90MB 模型），增大 `start_period` 至 300s 并添加 `hf_cache` 持久卷
+- 修复前端注册/登录 "connection failed"：前端改为同源请求（经 nginx 代理），消除 CORS 跨域问题；Vite 开发服务器新增 proxy 配置
+- 修复 PostgreSQL 缺少 `monster_definitions`/`npc_definitions`/`quest_definitions` 表：`docker-compose.yml` 补挂 `v0500_schema.sql` 迁移文件
+
+**全面配置化（消除 ~50 处硬编码）**
+- GameServer `config.yaml` 新增 6 个配置段：`database`（PG 连接池参数）、`redis`（连接数/key 前缀）、`cache`（TTL/消息上限）、`encounter`（遭敌率/安全区域）、`floor`（楼层地图）、`rest`/`relationship`（恢复率/好感度阈值）
+- `settings.py` 新增 10 个 dataclass + 全局访问器 `init_settings()`/`get_settings()`
+- `combat` 配置扩展：`defense_reduction_factor`、`damage_variance`、`str_scaling_divisor`、`bare_hands_atk`、`crit_multiplier`、`flee_dc`、`generic_monster`
+- 所有消费方代码（`postgres.py`、`redis_client.py`、`state_service.py`、`combat_state.py`、`action_executor.py`、`npc_relationship_service.py`）改为从 `get_settings()` 读取
+- `main.py` 移除硬编码 `DATABASE_URL` 默认密码，改为必须通过环境变量提供
+- Gateway：新增 `SSEConfig`/`RedisAuthConfig`，SSE 超时和 Redis auth key prefix 配置化
+- Frontend：`vite.config.ts` 代理目标通过 `VITE_API_PROXY_TARGET`/`VITE_WS_PROXY_TARGET` 环境变量配置
 
 ### v0.500 (2026-04-06) - 数据驱动游戏引擎 + RAG 集成 + 完整战斗/任务系统
 

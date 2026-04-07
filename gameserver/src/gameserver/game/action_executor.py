@@ -15,6 +15,7 @@ import random
 import uuid
 from dataclasses import dataclass, field
 
+from gameserver.config.settings import get_settings
 from gameserver.db.postgres import get_pg
 from gameserver.db import state_service
 from gameserver.game.combat_state import (
@@ -63,13 +64,13 @@ def _stat_mod(stat_value: int) -> int:
 
 
 def _calc_exp_to_next(level: int) -> int:
-    """exp_to_next = 100 * level^1.5"""
-    return int(100 * level ** 1.5)
+    lv_cfg = get_settings().game.leveling
+    return int(lv_cfg.exp_formula_base * level ** lv_cfg.exp_formula_exponent)
 
 
 def _calc_max_hp(level: int, vit: int) -> int:
-    """max_hp = 200 + level*50 + vit*10"""
-    return 200 + level * 50 + vit * 10
+    lv_cfg = get_settings().game.leveling
+    return lv_cfg.base_hp + level * lv_cfg.hp_per_level + vit * lv_cfg.hp_per_vit
 
 
 async def _check_level_up(player_id: str, state: dict, state_changes: dict) -> str:
@@ -77,6 +78,7 @@ async def _check_level_up(player_id: str, state: dict, state_changes: dict) -> s
 
     Modifies state_changes in place. Returns level-up description or empty string.
     """
+    lv_cfg = get_settings().game.leveling
     exp = state_changes.get("experience", int(state.get("experience", 0)))
     level = int(state.get("level", 1))
     exp_to_next = int(state.get("exp_to_next", _calc_exp_to_next(level)))
@@ -93,7 +95,7 @@ async def _check_level_up(player_id: str, state: dict, state_changes: dict) -> s
         return ""
 
     new_max_hp = _calc_max_hp(level, vit)
-    stat_pts = int(state.get("stat_points_available", 0)) + level_ups * 3
+    stat_pts = int(state.get("stat_points_available", 0)) + level_ups * lv_cfg.stat_points_per_level
 
     state_changes["level"] = level
     state_changes["experience"] = exp
@@ -106,7 +108,7 @@ async def _check_level_up(player_id: str, state: dict, state_changes: dict) -> s
 
     return (
         f"\nレベルアップ！Lv.{level - level_ups} → Lv.{level}！"
-        f"HP全回復（{new_max_hp}）、自由分配点数+{level_ups * 3}（合計{stat_pts}）。"
+        f"HP全回復（{new_max_hp}）、自由分配点数+{level_ups * lv_cfg.stat_points_per_level}（合計{stat_pts}）。"
     )
 
 
@@ -137,6 +139,8 @@ class ActionExecutor:
     async def _handle_attack(
         self, player_id: str, state: dict, args: dict
     ) -> ActionResult:
+        combat_cfg = get_settings().game.combat
+
         # Step 1: Permission (always allowed in combat)
         # Step 2: Precondition
         hp = int(state.get("current_hp", 0))
@@ -186,11 +190,13 @@ class ActionExecutor:
             if monster_def:
                 session = await start_combat(player_id, dict(monster_def))
             else:
+                gm = combat_cfg.generic_monster
                 session = await start_combat(player_id, {
                     "id": f"generic_{target}",
                     "name": target,
                     "monster_type": "unknown",
-                    "hp": 100, "atk": 15, "defense": 5, "ac": 10,
+                    "hp": gm["hp"], "atk": gm["atk"],
+                    "defense": gm["defense"], "ac": gm["ac"],
                     "abilities_json": [],
                 })
 
@@ -201,7 +207,7 @@ class ActionExecutor:
         luk = int(state.get("stat_luk", "10"))
 
         # Get equipped weapon ATK
-        weapon_atk = 10  # bare hands
+        weapon_atk = combat_cfg.bare_hands_atk
         char_id = state.get("character_id")
         if char_id:
             try:
@@ -226,19 +232,19 @@ class ActionExecutor:
         hit_details = []
 
         if hit or attack_roll["natural_max"]:
-            base_damage = weapon_atk * multiplier * (1 + int(state.get("stat_str", "10")) / 100)
+            base_damage = weapon_atk * multiplier * (1 + int(state.get("stat_str", "10")) / combat_cfg.str_scaling_divisor)
 
             for i in range(hit_count):
-                defense_reduction = monster.defense * 0.6
+                defense_reduction = monster.defense * combat_cfg.defense_reduction_factor
                 raw = max(1, base_damage - defense_reduction)
-                variance = random.uniform(0.9, 1.1)
+                variance = random.uniform(combat_cfg.damage_variance_min, combat_cfg.damage_variance_max)
                 dmg = max(1, int(raw * variance))
 
                 crit = False
                 crit_mult = 1.0
-                if random.random() < (0.01 + luk / 200):
+                if random.random() < (combat_cfg.critical_true_base + luk / combat_cfg.critical_true_luk_divisor):
                     crit = True
-                    crit_mult = 1.5
+                    crit_mult = combat_cfg.crit_multiplier
 
                 final_dmg = int(dmg * crit_mult)
                 total_damage += final_dmg
@@ -381,11 +387,12 @@ class ActionExecutor:
         # Process item effect
         item_name = inv["name"]
         changes = {}
+        potion_heal = get_settings().game.economy.potion_heal_amount
 
         if "heal" in item_id or "回复" in item_name:
             current_hp = int(state.get("current_hp", 0))
             max_hp = int(state.get("max_hp", 250))
-            heal = min(100, max_hp - current_hp)  # Low potion heals 100
+            heal = min(potion_heal, max_hp - current_hp)
             new_hp = min(max_hp, current_hp + heal)
             changes["current_hp"] = new_hp
             description = f"使用{item_name}，回复 {heal} HP。当前 HP: {new_hp}/{max_hp}"
@@ -418,19 +425,20 @@ class ActionExecutor:
     async def _handle_flee(
         self, player_id: str, state: dict, args: dict
     ) -> ActionResult:
+        flee_dc = get_settings().game.combat.flee_dc
         agi_mod = _stat_mod(state.get("stat_agi", "10"))
         roll = _roll(20, 1, agi_mod)
-        success = roll["total"] >= 12
+        success = roll["total"] >= flee_dc
 
         if success:
             return ActionResult(
                 success=True, action_type="flee",
-                description=f"逃跑检定: d20({roll['rolls'][0]})+{agi_mod}={roll['total']} >= 12，成功脱离战斗！",
+                description=f"逃跑检定: d20({roll['rolls'][0]})+{agi_mod}={roll['total']} >= {flee_dc}，成功脱离战斗！",
                 details={"roll": roll, "escaped": True},
             )
         return ActionResult(
             success=True, action_type="flee",
-            description=f"逃跑检定: d20({roll['rolls'][0]})+{agi_mod}={roll['total']} < 12，逃跑失败！本回合无法行动。",
+            description=f"逃跑检定: d20({roll['rolls'][0]})+{agi_mod}={roll['total']} < {flee_dc}，逃跑失败！本回合无法行动。",
             details={"roll": roll, "escaped": False},
         )
 
@@ -450,11 +458,11 @@ class ActionExecutor:
 
         await state_service.save_player_state(player_id, changes)
 
-        # Random encounter check (25% chance in wild areas)
+        # Random encounter check
+        encounter_cfg = get_settings().game.encounter
         encounter = None
-        safe_areas = ["起始之城", "城镇", "旅馆", "商店", "广场", "转移门", "酒馆"]
-        if not any(s in area for s in safe_areas):
-            if random.random() < 0.25:
+        if not any(s in area for s in encounter_cfg.safe_areas):
+            if random.random() < encounter_cfg.rate:
                 # Query actual monsters for current floor and area
                 current_floor = int(state.get("current_floor", 1))
                 try:
@@ -468,7 +476,7 @@ class ActionExecutor:
                     )
                     if monsters:
                         m = monsters[0]
-                        count = random.randint(1, 3) if m["monster_type"] != "mini_boss" else 1
+                        count = random.randint(1, encounter_cfg.max_count) if m["monster_type"] != "mini_boss" else 1
                         if count == 1:
                             encounter = f"野外遭遇！一只 {m['name']}(Lv.{m['level_min']}) 出现了！"
                         else:
@@ -523,18 +531,15 @@ class ActionExecutor:
     async def _handle_use_teleport_crystal(
         self, player_id: str, state: dict, args: dict
     ) -> ActionResult:
+        floor_cfg = get_settings().game.floor
         floor = args.get("floor", 1)
-        if floor < 1 or floor > 7:
+        if floor < 1 or floor > floor_cfg.max_floor:
             return ActionResult(
                 success=False, action_type="use_teleport_crystal",
-                error=f"无法传送到第{floor}层，当前只开放1-7层",
+                error=f"无法传送到第{floor}层，当前只开放1-{floor_cfg.max_floor}层",
             )
 
-        floor_areas = {
-            1: "起始之城", 2: "乌尔巴斯", 3: "兹姆福特",
-            4: "罗毕亚", 5: "卡尔路因", 6: "史塔基翁", 7: "窝鲁布达",
-        }
-        area = floor_areas.get(floor, f"第{floor}层主街区")
+        area = floor_cfg.floor_areas.get(floor, f"第{floor}层主街区")
         changes = {
             "current_floor": floor,
             "current_area": area,
@@ -662,7 +667,8 @@ class ActionExecutor:
                 state_changes=changes,
             )
         else:  # sell
-            sell_price = total_price // 2
+            npc_buy_rate = get_settings().game.economy.npc_buy_rate
+            sell_price = int(total_price * npc_buy_rate)
             changes = {"col": col + sell_price}
             await state_service.save_player_state(player_id, changes)
 
@@ -927,7 +933,8 @@ class ActionExecutor:
             new_hp = max_hp
             description = f"在旅馆进行长休（8小时），HP 完全恢复: {max_hp}/{max_hp}"
         else:
-            heal = max_hp // 4
+            recovery_rate = get_settings().game.rest.short_rest_recovery_rate
+            heal = int(max_hp * recovery_rate)
             new_hp = min(max_hp, current_hp + heal)
             description = f"短休（1小时），恢复 {heal} HP。当前 HP: {new_hp}/{max_hp}"
 

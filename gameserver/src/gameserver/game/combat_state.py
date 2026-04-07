@@ -25,11 +25,10 @@ import logging
 import random
 from dataclasses import dataclass, field
 
+from gameserver.config.settings import get_settings
 from gameserver.db.redis_client import get_redis
 
 logger = logging.getLogger(__name__)
-
-COMBAT_TTL = 1800  # 30 minutes
 
 
 @dataclass
@@ -105,7 +104,8 @@ class CombatSession:
 
 
 def _combat_key(player_id: str) -> str:
-    return f"sao:combat:{player_id}"
+    prefix = get_settings().redis.key_prefix
+    return f"{prefix}:combat:{player_id}"
 
 
 async def start_combat(
@@ -149,7 +149,7 @@ async def start_combat(
     key = _combat_key(player_id)
     await r.delete(key)
     await r.hset(key, mapping=session.to_redis_hash())
-    await r.expire(key, COMBAT_TTL)
+    await r.expire(key, get_settings().game.combat.combat_state_ttl_seconds)
 
     logger.info("Combat started: %s vs %s (HP: %d)", player_id[:8], monster.name, monster.hp)
     return session
@@ -169,7 +169,7 @@ async def update_combat(session: CombatSession) -> None:
     r = get_redis()
     key = _combat_key(session.player_id)
     await r.hset(key, mapping=session.to_redis_hash())
-    await r.expire(key, COMBAT_TTL)
+    await r.expire(key, get_settings().game.combat.combat_state_ttl_seconds)
 
 
 async def end_combat(player_id: str) -> None:
@@ -220,14 +220,15 @@ def calculate_counter_attack(
         )
 
     # Damage calculation
-    raw_damage = monster.atk - player_defense * 0.6
+    combat_cfg = get_settings().game.combat
+    raw_damage = monster.atk - player_defense * combat_cfg.defense_reduction_factor
     raw_damage = max(1, raw_damage)
-    variance = random.uniform(0.9, 1.1)
+    variance = random.uniform(combat_cfg.damage_variance_min, combat_cfg.damage_variance_max)
     final_damage = max(1, int(raw_damage * variance))
 
     # Natural 20 = critical
     if attack_roll == 20:
-        final_damage = int(final_damage * 1.5)
+        final_damage = int(final_damage * combat_cfg.crit_multiplier)
         desc = (
             f"{monster.name}发动反击（骰子: 20 - 会心一击！），"
             f"造成 {final_damage} 点伤害！"

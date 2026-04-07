@@ -7,6 +7,12 @@ gameserver:
   address: "gameserver:50051"
   timeout: 60s
 
+sse:
+  timeout: 120s
+
+redis:
+  auth_key_prefix: "sao:auth:token:"
+
 cors:
   allowed_origins:
     - "http://localhost"

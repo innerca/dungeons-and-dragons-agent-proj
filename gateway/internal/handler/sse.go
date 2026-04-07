@@ -8,14 +8,17 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+
+	"github.com/innerca/dungeons-and-dragons-agent-proj/gateway/config"
 )
 
 type SSEHandler struct {
 	channels *ResponseChannels
+	cfg      *config.Config
 }
 
-func NewSSEHandler(channels *ResponseChannels) *SSEHandler {
-	return &SSEHandler{channels: channels}
+func NewSSEHandler(channels *ResponseChannels, cfg *config.Config) *SSEHandler {
+	return &SSEHandler{channels: channels, cfg: cfg}
 }
 
 func (h *SSEHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -46,7 +49,7 @@ func (h *SSEHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("SSE client connected for request: %s", requestID)
 
 	ctx := r.Context()
-	timeout := time.After(120 * time.Second)
+	timeout := time.After(h.cfg.SSE.Timeout)
 
 	for {
 		select {

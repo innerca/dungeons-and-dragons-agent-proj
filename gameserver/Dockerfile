@@ -25,6 +25,8 @@ COPY --from=builder /app/config /app/config
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app/src:/app/gen"
 ENV PYTHONUNBUFFERED=1
+ENV HF_ENDPOINT=https://hf-mirror.com
+ENV HF_HOME=/app/data/hf_cache
 
 EXPOSE 50051
 

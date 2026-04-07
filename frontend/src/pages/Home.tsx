@@ -14,7 +14,7 @@ interface ChatMessage {
   error: string;
 }
 
-const GATEWAY_HOST = import.meta.env.VITE_GATEWAY_HOST || `${window.location.hostname}:8080`;
+const GATEWAY_HOST = import.meta.env.VITE_GATEWAY_HOST || '';
 
 interface Props {
   onLogout: () => void;
@@ -22,7 +22,9 @@ interface Props {
 
 export function Home({ onLogout }: Props) {
   const token = localStorage.getItem('token') || '';
-  const WS_URL = `ws://${GATEWAY_HOST}/ws?token=${token}`;
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsHost = GATEWAY_HOST || window.location.host;
+  const WS_URL = `${wsProtocol}//${wsHost}/ws?token=${token}`;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [model, setModel] = useState('deepseek');
