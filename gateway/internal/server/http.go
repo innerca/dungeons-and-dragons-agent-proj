@@ -26,7 +26,7 @@ func NewHTTPServer(cfg *config.Config, grpcClient *grpcclient.Client, rdb *redis
 	channels := handler.NewResponseChannels()
 
 	wsHandler := handler.NewWebSocketHandler(grpcClient, channels)
-	sseHandler := handler.NewSSEHandler(channels)
+	sseHandler := handler.NewSSEHandler(channels, cfg)
 	authHandler := handler.NewAuthHandler(grpcClient)
 
 	// Public routes (no auth required)
@@ -41,7 +41,7 @@ func NewHTTPServer(cfg *config.Config, grpcClient *grpcclient.Client, rdb *redis
 
 	// Authenticated routes
 	r.Group(func(r chi.Router) {
-		r.Use(middleware.Auth(rdb))
+		r.Use(middleware.Auth(rdb, cfg.Redis.AuthKeyPrefix))
 
 		r.Get("/ws", wsHandler.ServeHTTP)
 		r.Get("/api/v1/stream/{requestID}", sseHandler.ServeHTTP)

@@ -3,6 +3,8 @@
 import redis.asyncio as aioredis
 import logging
 
+from gameserver.config.settings import get_settings
+
 logger = logging.getLogger(__name__)
 
 _redis: aioredis.Redis | None = None
@@ -13,11 +15,12 @@ async def init_redis(redis_url: str) -> aioredis.Redis:
     global _redis
     if _redis is not None:
         return _redis
+    redis_cfg = get_settings().redis
     logger.info("Connecting to Redis...")
     _redis = aioredis.from_url(
         redis_url,
         decode_responses=True,
-        max_connections=20,
+        max_connections=redis_cfg.max_connections,
     )
     await _redis.ping()
     logger.info("Redis connected")

@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import uuid
 
+from gameserver.config.settings import get_settings
 from gameserver.db.postgres import get_pg
 
 logger = logging.getLogger(__name__)
@@ -100,18 +101,20 @@ async def update_relationship(
     initial = npc_def["initial_relationship"] if npc_def else 0
 
     # Upsert with clamping
+    rel_cfg = get_settings().game.relationship
     row = await pool.fetchrow(
         """INSERT INTO character_npc_relationships
            (character_id, npc_id, relationship_level, interaction_count, last_interaction_summary)
-           VALUES ($1, $2, GREATEST(-100, LEAST(100, $3 + $4)), 1, $5)
+           VALUES ($1, $2, GREATEST($6, LEAST($7, $3 + $4)), 1, $5)
            ON CONFLICT (character_id, npc_id)
            DO UPDATE SET
-               relationship_level = GREATEST(-100, LEAST(100,
+               relationship_level = GREATEST($6, LEAST($7,
                    character_npc_relationships.relationship_level + $4)),
                interaction_count = character_npc_relationships.interaction_count + 1,
                last_interaction_summary = COALESCE($5, character_npc_relationships.last_interaction_summary)
            RETURNING relationship_level""",
         char_id, npc_id, initial, delta, interaction_summary,
+        rel_cfg.min_level, rel_cfg.max_level,
     )
 
     new_level = row["relationship_level"] if row else initial + delta
@@ -124,17 +127,8 @@ async def update_relationship(
 
 def get_relationship_tier(level: int) -> str:
     """Convert numeric relationship level to a descriptive tier."""
-    if level >= 80:
-        return "挚友"
-    elif level >= 50:
-        return "亲密"
-    elif level >= 20:
-        return "友好"
-    elif level >= 0:
-        return "中立"
-    elif level >= -30:
-        return "冷淡"
-    elif level >= -60:
-        return "敌对"
-    else:
-        return "仇恨"
+    tiers = get_settings().game.relationship.tiers
+    for tier in tiers:
+        if level >= tier.min:
+            return tier.label
+    return tiers[-1].label if tiers else "中立"

@@ -123,7 +123,15 @@ class ChatService:
             # Call LLM with tools
             try:
                 response = await provider.chat_with_tools(
-                    messages=[ChatMessage(role=m["role"], content=m["content"]) for m in ctx.messages],
+                    messages=[
+                        ChatMessage(
+                            role=m["role"],
+                            content=m.get("content"),
+                            tool_calls=m.get("tool_calls"),
+                            tool_call_id=m.get("tool_call_id"),
+                        )
+                        for m in ctx.messages
+                    ],
                     tools=ctx.tools,
                 )
             except AttributeError:
@@ -182,7 +190,15 @@ class ChatService:
 
         # Stream final narrative
         narrative_parts = []
-        messages = [ChatMessage(role=m["role"], content=m.get("content") or "") for m in ctx.messages]
+        messages = [
+            ChatMessage(
+                role=m["role"],
+                content=m.get("content") or "",
+                tool_calls=m.get("tool_calls"),
+                tool_call_id=m.get("tool_call_id"),
+            )
+            for m in ctx.messages
+        ]
 
         try:
             async for chunk in provider.stream_chat(messages):

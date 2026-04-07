@@ -10,7 +10,7 @@ import (
 
 // Auth middleware: validates token from Authorization header or query param,
 // resolves player_id from Redis, and injects it into request context.
-func Auth(rdb *redis.Client) func(http.Handler) http.Handler {
+func Auth(rdb *redis.Client, authKeyPrefix string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token := extractToken(r)
@@ -19,7 +19,7 @@ func Auth(rdb *redis.Client) func(http.Handler) http.Handler {
 				return
 			}
 
-			playerID, err := rdb.Get(r.Context(), "sao:auth:token:"+token).Result()
+			playerID, err := rdb.Get(r.Context(), authKeyPrefix+token).Result()
 			if err == redis.Nil || playerID == "" {
 				http.Error(w, `{"error":"invalid or expired token"}`, http.StatusUnauthorized)
 				return

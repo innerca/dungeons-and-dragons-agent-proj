@@ -11,7 +11,7 @@ import grpc
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "gen"))
 from game.v1 import game_service_pb2_grpc
 
-from gameserver.config.settings import Settings
+from gameserver.config.settings import Settings, init_settings
 from gameserver.grpc_service.game_servicer import GameServicer
 from gameserver.db.postgres import init_pg, close_pg
 from gameserver.db.redis_client import init_redis, close_redis
@@ -35,11 +35,13 @@ async def serve() -> None:
         str(Path(__file__).parent.parent.parent / "config" / "config.yaml"),
     )
     settings = Settings.load(config_path)
+    init_settings(settings)
 
-    # Initialize database connections
-    database_url = os.environ.get(
-        "DATABASE_URL", "postgresql://sao:sao_dev_password@localhost:5432/sao_game"
-    )
+    # Initialize database connections (require DATABASE_URL env var)
+    database_url = os.environ.get("DATABASE_URL")
+    if not database_url:
+        logger.error("DATABASE_URL environment variable is required")
+        return
     redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 
     try:

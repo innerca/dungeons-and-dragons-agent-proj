@@ -21,7 +21,15 @@ class OpenAICompatibleProvider(LLMProvider):
         )
 
     def _format_messages(self, messages: list[ChatMessage]) -> list[dict]:
-        return [{"role": m.role, "content": m.content} for m in messages]
+        result = []
+        for m in messages:
+            msg: dict = {"role": m.role, "content": m.content}
+            if m.tool_calls is not None:
+                msg["tool_calls"] = m.tool_calls
+            if m.tool_call_id is not None:
+                msg["tool_call_id"] = m.tool_call_id
+            result.append(msg)
+        return result
 
     async def stream_chat(
         self, messages: list[ChatMessage]
