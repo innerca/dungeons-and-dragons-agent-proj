@@ -184,7 +184,7 @@ start_local() {
 
     # Start services in background
     log "Starting GameServer on :50051..."
-    (cd gameserver && PYTHONPATH=src:gen DATABASE_URL="${DATABASE_URL:-postgresql://sao:sao_dev_password@localhost:5432/sao_game}" REDIS_URL="${REDIS_URL:-redis://localhost:6379/0}" uv run python -m gameserver.main) &
+    (cd gameserver && PYTHONPATH=src:gen DATABASE_URL="${DATABASE_URL:-postgresql://sao:sao_dev_password@localhost:5432/sao_game}" REDIS_URL="${REDIS_URL:-redis://localhost:6379/0}" HF_ENDPOINT="${HF_ENDPOINT:-https://hf-mirror.com}" uv run python -m gameserver.main) &
     echo $! > /tmp/sao_gameserver.pid
 
     sleep 2

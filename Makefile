@@ -75,7 +75,7 @@ dev-gateway: ## Start Gateway only (local)
 	cd gateway && REDIS_URL=redis://localhost:6379/0 GO111MODULE=on go run cmd/gateway/main.go
 
 dev-gameserver: ## Start GameServer only (local)
-	cd gameserver && PYTHONPATH=src:gen DATABASE_URL=postgresql://sao:sao_dev_password@localhost:5432/sao_game REDIS_URL=redis://localhost:6379/0 uv run python -m gameserver.main
+	cd gameserver && PYTHONPATH=src:gen DATABASE_URL=postgresql://sao:sao_dev_password@localhost:5432/sao_game REDIS_URL=redis://localhost:6379/0 HF_ENDPOINT=https://hf-mirror.com uv run python -m gameserver.main
 
 dev-frontend: ## Start Frontend only (local)
 	cd frontend && npm run dev
