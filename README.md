@@ -38,6 +38,8 @@ AI 驱动的 DND 游戏项目，基于微服务架构构建。以刀剑神域 Pr
 
 ## 快速启动
 
+**你需要有小说内容才能启动！**
+
 ```bash
 # 1. 克隆项目
 git clone https://github.com/innerca/dungeons-and-dragons-agent-proj.git
