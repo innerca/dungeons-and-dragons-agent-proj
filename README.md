@@ -380,3 +380,5 @@ make verify-vectordb
 - 端到端验证通过：Frontend -> WS -> Gateway -> gRPC -> GameServer -> DeepSeek -> SSE 流式响应
 - 安全原则和架构文档
 - Makefile 统一构建命令
+
+This project and all its historical commits are licensed under CC BY-NC-ND 4.0.
