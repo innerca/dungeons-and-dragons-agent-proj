@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 import uuid
 
 from gameserver.config.settings import get_settings
@@ -43,28 +44,33 @@ async def resolve_token(token: str) -> str | None:
     return await r.get(_auth_key(token))
 
 
-async def load_player_state(player_id: str) -> dict:
+async def load_player_state(player_id: str, trace_id: str = "no-trace") -> dict:
     """Load player state from Redis, fallback to PG if cache miss.
 
     Returns a flat dict of character attributes.
     """
+    start_time = time.time()
     r = get_redis()
     key = _state_key(player_id)
 
     # Try Redis first
     cached = await r.hgetall(key)
     if cached:
-        logger.debug("State cache hit for %s", player_id)
+        latency_ms = (time.time() - start_time) * 1000
+        logger.debug("trace=%s step=state_load source=redis fields=%d latency_ms=%.1f", trace_id, len(cached), latency_ms)
         return cached
 
     # Fallback to PG
-    logger.info("State cache miss for %s, loading from PG", player_id)
+    logger.debug("trace=%s step=state_load source=redis status=miss", trace_id)
+    pg_start = time.time()
     pool = get_pg()
     row = await pool.fetchrow(
         "SELECT * FROM player_characters WHERE player_id = $1",
         uuid.UUID(player_id),
     )
+    pg_latency_ms = (time.time() - pg_start) * 1000
     if not row:
+        logger.debug("trace=%s step=state_load source=postgres status=not_found latency_ms=%.1f", trace_id, pg_latency_ms)
         return {}
 
     state = {
@@ -92,12 +98,16 @@ async def load_player_state(player_id: str) -> dict:
     state_ttl = get_settings().cache.state_ttl
     await r.hset(key, mapping=state)
     await r.expire(key, state_ttl)
+    
+    total_latency_ms = (time.time() - start_time) * 1000
+    logger.debug("trace=%s step=state_load source=postgres fields=%d pg_ms=%.1f total_ms=%.1f", trace_id, len(state), pg_latency_ms, total_latency_ms)
 
     return state
 
 
-async def save_player_state(player_id: str, changes: dict) -> None:
+async def save_player_state(player_id: str, changes: dict, trace_id: str = "no-trace") -> None:
     """Write-Through: update Redis immediately, async persist to PG."""
+    start_time = time.time()
     r = get_redis()
     key = _state_key(player_id)
     state_ttl = get_settings().cache.state_ttl
@@ -106,6 +116,7 @@ async def save_player_state(player_id: str, changes: dict) -> None:
     if changes:
         await r.hset(key, mapping={k: str(v) for k, v in changes.items()})
         await r.expire(key, state_ttl)
+        logger.debug("trace=%s step=state_save target=redis fields=%d", trace_id, len(changes))
 
     # Persist to PG (sync for now, can be made async later)
     pg_updates = {}
@@ -133,10 +144,14 @@ async def save_player_state(player_id: str, changes: dict) -> None:
             pg_updates[field_map[k]] = v if k in str_fields else int(v)
 
     if pg_updates:
+        pg_start = time.time()
         pool = get_pg()
         sets = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(pg_updates))
         query = f"UPDATE player_characters SET {sets}, updated_at = now() WHERE player_id = $1"
         await pool.execute(query, uuid.UUID(player_id), *pg_updates.values())
+        pg_latency_ms = (time.time() - pg_start) * 1000
+        total_latency_ms = (time.time() - start_time) * 1000
+        logger.debug("trace=%s step=state_save target=postgres fields=%d pg_ms=%.1f total_ms=%.1f", trace_id, len(pg_updates), pg_latency_ms, total_latency_ms)
 
 
 # --- Conversation History (Redis Layer) ---

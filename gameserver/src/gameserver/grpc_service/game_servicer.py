@@ -29,27 +29,38 @@ class GameServicer(game_service_pb2_grpc.GameServiceServicer):
         message = request.message
         model = request.model
 
+        # Extract trace_id from gRPC metadata
+        metadata = dict(context.invocation_metadata())
+        trace_id = metadata.get("x-trace-id", "")
+        if not trace_id:
+            # Generate a short trace_id if not provided
+            import uuid
+            trace_id = str(uuid.uuid4())[:8]
+
         if not player_id:
+            logger.error("trace=%s step=chat_validation error=missing_player_id", trace_id)
             yield game_service_pb2.ChatResponse(
                 content="", is_done=True, error="player_id is required"
             )
             return
 
         if not message or not message.strip():
+            logger.error("trace=%s step=chat_validation error=empty_message", trace_id)
             yield game_service_pb2.ChatResponse(
                 content="", is_done=True, error="Message cannot be empty"
             )
             return
 
         if len(message) > 10000:
+            logger.error("trace=%s step=chat_validation error=message_too_long len=%d", trace_id, len(message))
             yield game_service_pb2.ChatResponse(
                 content="", is_done=True, error="Message too long (max 10000 chars)"
             )
             return
 
         logger.info(
-            "gRPC Chat: player=%s, model=%s, msg_len=%d",
-            player_id, model, len(message),
+            "trace=%s step=chat_request player=%s model=%s msg_len=%d",
+            trace_id, player_id, model, len(message),
         )
 
         try:
@@ -57,6 +68,7 @@ class GameServicer(game_service_pb2_grpc.GameServiceServicer):
                 player_id=player_id,
                 message=message,
                 model=model,
+                trace_id=trace_id,
             ):
                 actions = []
                 for a in result.get("actions", []):
@@ -87,7 +99,7 @@ class GameServicer(game_service_pb2_grpc.GameServiceServicer):
                 )
 
         except Exception as e:
-            logger.error("Chat error: %s", str(e), exc_info=True)
+            logger.error("trace=%s step=chat_error error=%s", trace_id, str(e), exc_info=True)
             yield game_service_pb2.ChatResponse(
                 content="", is_done=True, error=str(e)
             )

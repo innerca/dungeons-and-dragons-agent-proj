@@ -2,16 +2,26 @@ package handler
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	gamev1 "github.com/innerca/dungeons-and-dragons-agent-proj/gateway/gen/game/v1"
 	grpcclient "github.com/innerca/dungeons-and-dragons-agent-proj/gateway/internal/grpc"
 )
+
+// generateTraceID generates a short trace ID (8 hex chars)
+func generateTraceID() string {
+	b := make([]byte, 4)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
@@ -27,6 +37,7 @@ type wsMessage struct {
 type wsResponse struct {
 	RequestID string `json:"request_id"`
 	SSEUrl    string `json:"sse_url"`
+	TraceID   string `json:"trace_id"`
 }
 
 // ResponseChannels stores streaming response channels keyed by request_id
@@ -63,16 +74,18 @@ func (rc *ResponseChannels) Delete(requestID string) {
 }
 
 type WebSocketHandler struct {
-	grpcClient *grpcclient.Client
-	channels   *ResponseChannels
-	counter    uint64
-	mu         sync.Mutex
+	grpcClient   *grpcclient.Client
+	channels     *ResponseChannels
+	traceChannel *TraceChannel
+	counter      uint64
+	mu           sync.Mutex
 }
 
-func NewWebSocketHandler(grpcClient *grpcclient.Client, channels *ResponseChannels) *WebSocketHandler {
+func NewWebSocketHandler(grpcClient *grpcclient.Client, channels *ResponseChannels, traceChannel *TraceChannel) *WebSocketHandler {
 	return &WebSocketHandler{
-		grpcClient: grpcClient,
-		channels:   channels,
+		grpcClient:   grpcClient,
+		channels:     channels,
+		traceChannel: traceChannel,
 	}
 }
 
@@ -124,25 +137,33 @@ func (h *WebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		requestID := h.nextRequestID()
+		traceID := generateTraceID()
 		ch := h.channels.Create(requestID)
 
-		// Start gRPC streaming call in background with player_id injected
-		go h.streamFromGameServer(requestID, ch, playerID, &msg)
+		// Store trace_id for SSE handler to retrieve
+		h.traceChannel.Set(requestID, traceID)
 
-		// Tell client where to listen for SSE
+		// Log WebSocket message received
+		log.Printf("[INFO] trace=%s step=ws_recv player=%s msg_len=%d", traceID, playerID, len(msg.Message))
+
+		// Start gRPC streaming call in background with player_id and trace_id injected
+		go h.streamFromGameServer(requestID, traceID, ch, playerID, &msg)
+
+		// Tell client where to listen for SSE, including trace_id
 		resp := wsResponse{
 			RequestID: requestID,
 			SSEUrl:    fmt.Sprintf("/api/v1/stream/%s", requestID),
+			TraceID:   traceID,
 		}
 		respBytes, _ := json.Marshal(resp)
 		if err := conn.WriteMessage(websocket.TextMessage, respBytes); err != nil {
-			log.Printf("WebSocket write error: %v", err)
+			log.Printf("[ERROR] trace=%s step=ws_write error=\"%s\"", traceID, err.Error())
 			break
 		}
 	}
 }
 
-func (h *WebSocketHandler) streamFromGameServer(requestID string, ch chan *gamev1.ChatResponse, playerID string, msg *wsMessage) {
+func (h *WebSocketHandler) streamFromGameServer(requestID string, traceID string, ch chan *gamev1.ChatResponse, playerID string, msg *wsMessage) {
 	defer close(ch)
 	defer h.channels.Delete(requestID)
 
@@ -153,9 +174,10 @@ func (h *WebSocketHandler) streamFromGameServer(requestID string, ch chan *gamev
 		Model:    msg.Model,
 	}
 
-	stream, err := h.grpcClient.Chat(context.Background(), req)
+	startTime := time.Now()
+	stream, err := h.grpcClient.Chat(context.Background(), req, traceID)
 	if err != nil {
-		log.Printf("gRPC Chat error for %s: %v", requestID, err)
+		log.Printf("[ERROR] trace=%s step=grpc_call status=error error=\"%s\"", traceID, err.Error())
 		ch <- &gamev1.ChatResponse{Content: "", IsDone: true, Error: err.Error()}
 		return
 	}
@@ -164,7 +186,7 @@ func (h *WebSocketHandler) streamFromGameServer(requestID string, ch chan *gamev
 		resp, err := stream.Recv()
 		if err != nil {
 			if err.Error() != "EOF" {
-				log.Printf("gRPC stream error for %s: %v", requestID, err)
+				log.Printf("[ERROR] trace=%s step=grpc_stream status=error error=\"%s\"", traceID, err.Error())
 			}
 			break
 		}
@@ -173,4 +195,7 @@ func (h *WebSocketHandler) streamFromGameServer(requestID string, ch chan *gamev
 			break
 		}
 	}
+
+	latencyMs := time.Since(startTime).Milliseconds()
+	log.Printf("[INFO] trace=%s step=grpc_complete latency_ms=%d", traceID, latencyMs)
 }

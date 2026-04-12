@@ -8,6 +8,7 @@ import (
 	gamev1 "github.com/innerca/dungeons-and-dragons-agent-proj/gateway/gen/game/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 )
 
 type Client struct {
@@ -34,23 +35,33 @@ func New(address string, timeout time.Duration) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) Chat(ctx context.Context, req *gamev1.ChatRequest) (gamev1.GameService_ChatClient, error) {
+func (c *Client) Chat(ctx context.Context, req *gamev1.ChatRequest, traceID string) (gamev1.GameService_ChatClient, error) {
+	md := metadata.Pairs("x-trace-id", traceID)
+	ctx = metadata.NewOutgoingContext(ctx, md)
 	return c.client.Chat(ctx, req)
 }
 
-func (c *Client) CreatePlayer(ctx context.Context, req *gamev1.CreatePlayerRequest) (*gamev1.CreatePlayerResponse, error) {
+func (c *Client) CreatePlayer(ctx context.Context, req *gamev1.CreatePlayerRequest, traceID string) (*gamev1.CreatePlayerResponse, error) {
+	md := metadata.Pairs("x-trace-id", traceID)
+	ctx = metadata.NewOutgoingContext(ctx, md)
 	return c.client.CreatePlayer(ctx, req)
 }
 
-func (c *Client) AuthenticatePlayer(ctx context.Context, req *gamev1.AuthRequest) (*gamev1.AuthResponse, error) {
+func (c *Client) AuthenticatePlayer(ctx context.Context, req *gamev1.AuthRequest, traceID string) (*gamev1.AuthResponse, error) {
+	md := metadata.Pairs("x-trace-id", traceID)
+	ctx = metadata.NewOutgoingContext(ctx, md)
 	return c.client.AuthenticatePlayer(ctx, req)
 }
 
-func (c *Client) CreateCharacter(ctx context.Context, req *gamev1.CreateCharacterRequest) (*gamev1.CreateCharacterResponse, error) {
+func (c *Client) CreateCharacter(ctx context.Context, req *gamev1.CreateCharacterRequest, traceID string) (*gamev1.CreateCharacterResponse, error) {
+	md := metadata.Pairs("x-trace-id", traceID)
+	ctx = metadata.NewOutgoingContext(ctx, md)
 	return c.client.CreateCharacter(ctx, req)
 }
 
-func (c *Client) GetPlayerState(ctx context.Context, req *gamev1.GetPlayerStateRequest) (*gamev1.PlayerStateResponse, error) {
+func (c *Client) GetPlayerState(ctx context.Context, req *gamev1.GetPlayerStateRequest, traceID string) (*gamev1.PlayerStateResponse, error) {
+	md := metadata.Pairs("x-trace-id", traceID)
+	ctx = metadata.NewOutgoingContext(ctx, md)
 	return c.client.GetPlayerState(ctx, req)
 }
 

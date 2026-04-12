@@ -160,6 +160,7 @@ async def build_context(
     user_message: str,
     tools: list[dict],
     rag_chunks: list[str] | None = None,
+    trace_id: str = "no-trace",
 ) -> GameContext:
     """Build the full LLM context from 3-layer memory.
 
@@ -168,14 +169,19 @@ async def build_context(
         user_message: Current user input
         tools: OpenAI-format tool definitions for ReAct
         rag_chunks: Optional RAG retrieval results from ChromaDB
+        trace_id: Trace ID for logging
     """
+    import time
+    start_time = time.time()
+    
     ctx = GameContext(tools=tools)
 
     # Layer 1: System prompt (DM persona + world rules)
     ctx.messages.append({"role": "system", "content": SYSTEM_PROMPT})
+    system_tokens = len(SYSTEM_PROMPT) // 4  # Rough estimate: 4 chars per token
 
     # Layer 2: Player state snapshot (from Redis/PG)
-    state = await state_service.load_player_state(player_id)
+    state = await state_service.load_player_state(player_id, trace_id=trace_id)
     snapshot = _format_state_snapshot(state)
 
     # Append combat state, active quests, and NPC relationships to snapshot
@@ -184,6 +190,7 @@ async def build_context(
     rel_snap = await _format_relationship_snapshot(player_id)
 
     enriched = snapshot
+    snapshot_tokens = len(enriched) // 4
     if combat_snap:
         enriched += f"\n{combat_snap}"
     if quest_snap:
@@ -192,18 +199,23 @@ async def build_context(
         enriched += f"\n{rel_snap}"
 
     ctx.messages.append({"role": "system", "content": enriched})
+    context_tokens = len(enriched) // 4 - snapshot_tokens
 
     # Layer 3: Conversation summary (compressed old history)
     summary = await state_service.get_summary(player_id)
+    summary_tokens = 0
     if summary:
+        summary_tokens = len(summary) // 4
         ctx.messages.append({
             "role": "system",
             "content": f"[冒险经历摘要]\n{summary}",
         })
 
     # Layer 4: RAG retrieval results
+    rag_tokens = 0
     if rag_chunks:
         rag_text = "\n---\n".join(rag_chunks[:5])
+        rag_tokens = len(rag_text) // 4
         ctx.messages.append({
             "role": "system",
             "content": f"[世界知识参考]\n{rag_text}",
@@ -211,16 +223,27 @@ async def build_context(
 
     # Layer 5: Recent chat history (from Redis)
     history = await state_service.get_recent_messages(player_id, count=20)
+    history_tokens = 0
     for msg in history:
         ctx.messages.append({"role": msg["role"], "content": msg["content"]})
+        history_tokens += len(msg.get("content", "")) // 4
 
     # Layer 6: Current user input
     ctx.messages.append({"role": "user", "content": user_message})
+    user_tokens = len(user_message) // 4
+    
+    # Log context assembly stats
+    total_tokens = system_tokens + context_tokens + summary_tokens + rag_tokens + history_tokens + user_tokens
+    latency_ms = (time.time() - start_time) * 1000
+    logger.debug(
+        "trace=%s step=context_build latency_ms=%.1f tokens_est=%d (system=%d context=%d summary=%d rag=%d history=%d user=%d)",
+        trace_id, latency_ms, total_tokens, system_tokens, context_tokens, summary_tokens, rag_tokens, history_tokens, user_tokens
+    )
 
     return ctx
 
 
-async def maybe_compress_history(player_id: str, llm_provider) -> None:
+async def maybe_compress_history(player_id: str, llm_provider, trace_id: str = "no-trace") -> None:
     """Check if history needs compression, and if so, generate summary.
 
     Trigger: Redis history > 40 messages
@@ -228,15 +251,17 @@ async def maybe_compress_history(player_id: str, llm_provider) -> None:
     """
     from gameserver.db.redis_client import get_redis
     import json
+    import time
 
     r = get_redis()
     key = state_service._history_key(player_id)
     length = await r.llen(key)
 
     if length <= 40:
+        logger.debug("trace=%s step=history_compress status=skip messages=%d", trace_id, length)
         return
 
-    logger.info("History compression triggered for %s (%d messages)", player_id, length)
+    logger.info("trace=%s step=history_compress status=triggered messages=%d", trace_id, length)
 
     # Get oldest 20 messages (end of list since LPUSH puts newest first)
     oldest_raw = await r.lrange(key, 30, 49)
@@ -272,4 +297,4 @@ async def maybe_compress_history(player_id: str, llm_provider) -> None:
 
     # Trim Redis history to 30
     await r.ltrim(key, 0, 29)
-    logger.info("History compressed for %s, summary updated", player_id)
+    logger.info("trace=%s step=history_compress status=complete messages=%d->30", trace_id, length)

@@ -73,7 +73,7 @@ def _calc_max_hp(level: int, vit: int) -> int:
     return lv_cfg.base_hp + level * lv_cfg.hp_per_level + vit * lv_cfg.hp_per_vit
 
 
-async def _check_level_up(player_id: str, state: dict, state_changes: dict) -> str:
+async def _check_level_up(player_id: str, state: dict, state_changes: dict, trace_id: str = "no-trace") -> str:
     """Check if player should level up after gaining EXP.
 
     Modifies state_changes in place. Returns level-up description or empty string.
@@ -104,7 +104,8 @@ async def _check_level_up(player_id: str, state: dict, state_changes: dict) -> s
     state_changes["current_hp"] = new_max_hp  # Full heal on level up
     state_changes["stat_points_available"] = stat_pts
 
-    await state_service.save_player_state(player_id, state_changes)
+    await state_service.save_player_state(player_id, state_changes, trace_id=trace_id)
+    logger.debug("trace=%s step=level_up new_level=%d level_ups=%d", trace_id, level, level_ups)
 
     return (
         f"\nレベルアップ！Lv.{level - level_ups} → Lv.{level}！"
@@ -116,10 +117,15 @@ class ActionExecutor:
     """Executes tool calls with 5-step validation."""
 
     async def execute(
-        self, player_id: str, state: dict, tool_name: str, tool_args: dict
+        self, player_id: str, state: dict, tool_name: str, tool_args: dict, trace_id: str = "no-trace"
     ) -> ActionResult:
+        logger.info("trace=%s step=tool_dispatch tool=%s args=%s", trace_id, tool_name, str(tool_args)[:100])
+        start_time = time.time()
+        
         handler = getattr(self, f"_handle_{tool_name}", None)
         if handler is None:
+            latency_ms = int((time.time() - start_time) * 1000)
+            logger.error("trace=%s step=tool_complete tool=%s success=False error=unknown_tool latency_ms=%d", trace_id, tool_name, latency_ms)
             return ActionResult(
                 success=False,
                 action_type=tool_name,
@@ -127,9 +133,13 @@ class ActionExecutor:
             )
 
         try:
-            return await handler(player_id, state, tool_args)
+            result = await handler(player_id, state, tool_args, trace_id=trace_id)
+            latency_ms = int((time.time() - start_time) * 1000)
+            logger.info("trace=%s step=tool_complete tool=%s success=%s latency_ms=%d", trace_id, tool_name, result.success, latency_ms)
+            return result
         except Exception as e:
-            logger.error("Action execution error: %s", e, exc_info=True)
+            latency_ms = int((time.time() - start_time) * 1000)
+            logger.error("trace=%s step=tool_complete tool=%s success=False error=%s latency_ms=%d", trace_id, tool_name, e, latency_ms, exc_info=True)
             return ActionResult(
                 success=False, action_type=tool_name, error=f"执行错误: {str(e)}"
             )
@@ -137,13 +147,16 @@ class ActionExecutor:
     # --- Combat Handlers ---
 
     async def _handle_attack(
-        self, player_id: str, state: dict, args: dict
+        self, player_id: str, state: dict, args: dict, trace_id: str = "no-trace"
     ) -> ActionResult:
         combat_cfg = get_settings().game.combat
 
         # Step 1: Permission (always allowed in combat)
+        logger.debug("trace=%s step=validate_permission action=attack result=pass", trace_id)
+        
         # Step 2: Precondition
         hp = int(state.get("current_hp", 0))
+        logger.debug("trace=%s step=validate_precondition check=hp>0 value=%d result=%s", trace_id, hp, "pass" if hp > 0 else "fail")
         if hp <= 0:
             return ActionResult(success=False, action_type="attack", error="HP 为 0，无法行动")
 
@@ -181,6 +194,7 @@ class ActionExecutor:
 
         # Step 3: Get or create combat session with real monster data
         session = await get_combat(player_id)
+        logger.debug("trace=%s step=validate_resource resource=combat_session found=%s", trace_id, session is not None)
         if not session:
             pool = get_pg()
             monster_def = await pool.fetchrow(
@@ -188,7 +202,7 @@ class ActionExecutor:
                 target,
             )
             if monster_def:
-                session = await start_combat(player_id, dict(monster_def))
+                session = await start_combat(player_id, dict(monster_def), trace_id=trace_id)
             else:
                 gm = combat_cfg.generic_monster
                 session = await start_combat(player_id, {
@@ -198,13 +212,18 @@ class ActionExecutor:
                     "hp": gm["hp"], "atk": gm["atk"],
                     "defense": gm["defense"], "ac": gm["ac"],
                     "abilities_json": [],
-                })
+                }, trace_id=trace_id)
 
         monster = session.monster
 
         # Step 4: Computation
         dex_mod = _stat_mod(state.get("stat_dex", "10"))
         luk = int(state.get("stat_luk", "10"))
+        
+        # Attack roll (d20 + DEX mod) vs monster AC
+        attack_roll = _roll(20, 1, dex_mod)
+        hit = attack_roll["total"] >= monster.ac
+        logger.debug("trace=%s step=compute attack_roll=%d vs_ac=%d hit=%s", trace_id, attack_roll["total"], monster.ac, hit)
 
         # Get equipped weapon ATK
         weapon_atk = combat_cfg.bare_hands_atk
@@ -267,6 +286,10 @@ class ActionExecutor:
 
         state_changes = {}
 
+        # Step 5: State Write
+        state_changes = {}
+        logger.debug("trace=%s step=state_write target=redis fields=%s", trace_id, list(state_changes.keys()) if state_changes else "none")
+        
         # Step 5: Post-attack resolution
         if monster.is_dead:
             description += f"\n{monster.name} 被击败了！"
@@ -284,12 +307,12 @@ class ActionExecutor:
             state_changes["experience"] = int(state.get("experience", 0)) + exp_gain
             state_changes["col"] = int(state.get("col", 0)) + col_gain
             # Check level up
-            level_up_msg = await _check_level_up(player_id, state, state_changes)
+            level_up_msg = await _check_level_up(player_id, state, state_changes, trace_id=trace_id)
             if level_up_msg:
                 description += level_up_msg
             else:
-                await state_service.save_player_state(player_id, state_changes)
-            await end_combat(player_id)
+                await state_service.save_player_state(player_id, state_changes, trace_id=trace_id)
+            await end_combat(player_id, trace_id=trace_id, reason="monster_defeated")
 
             # Quest progress: kill-type objectives
             try:
@@ -319,18 +342,18 @@ class ActionExecutor:
                 except Exception:
                     pass
 
-            counter = calculate_counter_attack(monster, player_ac, player_def)
+            counter = calculate_counter_attack(monster, player_ac, player_def, trace_id=trace_id)
             description += f"\n{counter.description}"
 
             if counter.hits:
                 new_hp = max(0, hp - counter.damage)
                 state_changes["current_hp"] = new_hp
-                await state_service.save_player_state(player_id, state_changes)
+                await state_service.save_player_state(player_id, state_changes, trace_id=trace_id)
                 if new_hp <= 0:
                     description += "\n你的HP归零了……角色死亡。"
 
             session.round_number += 1
-            await update_combat(session)
+            await update_combat(session, trace_id=trace_id)
 
         return ActionResult(
             success=True,
@@ -351,8 +374,9 @@ class ActionExecutor:
         )
 
     async def _handle_defend(
-        self, player_id: str, state: dict, args: dict
+        self, player_id: str, state: dict, args: dict, trace_id: str = "no-trace"
     ) -> ActionResult:
+        logger.debug("trace=%s step=validate_permission action=defend result=pass", trace_id)
         return ActionResult(
             success=True,
             action_type="defend",
@@ -361,13 +385,16 @@ class ActionExecutor:
         )
 
     async def _handle_use_item(
-        self, player_id: str, state: dict, args: dict
+        self, player_id: str, state: dict, args: dict, trace_id: str = "no-trace"
     ) -> ActionResult:
+        logger.debug("trace=%s step=validate_permission action=use_item result=pass", trace_id)
+        
         item_id = args.get("item_id", "")
         pool = get_pg()
 
         # Check inventory
         char_id = state.get("character_id")
+        logger.debug("trace=%s step=validate_precondition check=character_exists char_id=%s", trace_id, char_id)
         if not char_id:
             return ActionResult(success=False, action_type="use_item", error="未创建角色")
 
@@ -378,6 +405,7 @@ class ActionExecutor:
                WHERE ci.character_id = $1 AND ci.item_def_id = $2 AND ci.quantity > 0""",
             uuid.UUID(char_id), item_id,
         )
+        logger.debug("trace=%s step=validate_resource resource=item item_id=%s found=%s", trace_id, item_id, inv is not None)
         if not inv:
             return ActionResult(
                 success=False, action_type="use_item",
@@ -412,7 +440,8 @@ class ActionExecutor:
 
         # Apply state changes
         if changes:
-            await state_service.save_player_state(player_id, changes)
+            await state_service.save_player_state(player_id, changes, trace_id=trace_id)
+            logger.debug("trace=%s step=state_write target=redis fields=%s", trace_id, list(changes.keys()))
 
         return ActionResult(
             success=True,
@@ -423,12 +452,16 @@ class ActionExecutor:
         )
 
     async def _handle_flee(
-        self, player_id: str, state: dict, args: dict
+        self, player_id: str, state: dict, args: dict, trace_id: str = "no-trace"
     ) -> ActionResult:
+        logger.debug("trace=%s step=validate_permission action=flee result=pass", trace_id)
+        
         flee_dc = get_settings().game.combat.flee_dc
         agi_mod = _stat_mod(state.get("stat_agi", "10"))
         roll = _roll(20, 1, agi_mod)
         success = roll["total"] >= flee_dc
+        
+        logger.debug("trace=%s step=compute flee_roll=%d vs_dc=%d success=%s", trace_id, roll["total"], flee_dc, success)
 
         if success:
             return ActionResult(
@@ -445,8 +478,10 @@ class ActionExecutor:
     # --- Movement Handlers ---
 
     async def _handle_move_to(
-        self, player_id: str, state: dict, args: dict
+        self, player_id: str, state: dict, args: dict, trace_id: str = "no-trace"
     ) -> ActionResult:
+        logger.debug("trace=%s step=validate_permission action=move_to result=pass", trace_id)
+        
         area = args.get("area", "")
         location = args.get("location", "")
 
@@ -456,7 +491,8 @@ class ActionExecutor:
         else:
             changes["current_location"] = area
 
-        await state_service.save_player_state(player_id, changes)
+        await state_service.save_player_state(player_id, changes, trace_id=trace_id)
+        logger.debug("trace=%s step=state_write target=redis fields=%s", trace_id, list(changes.keys()))
 
         # Random encounter check
         encounter_cfg = get_settings().game.encounter
@@ -516,11 +552,14 @@ class ActionExecutor:
         )
 
     async def _handle_enter_dungeon(
-        self, player_id: str, state: dict, args: dict
+        self, player_id: str, state: dict, args: dict, trace_id: str = "no-trace"
     ) -> ActionResult:
+        logger.debug("trace=%s step=validate_permission action=enter_dungeon result=pass", trace_id)
+        
         dungeon = args.get("dungeon_name", "")
         changes = {"current_area": dungeon, "current_location": "入口"}
-        await state_service.save_player_state(player_id, changes)
+        await state_service.save_player_state(player_id, changes, trace_id=trace_id)
+        logger.debug("trace=%s step=state_write target=redis fields=%s", trace_id, list(changes.keys()))
 
         return ActionResult(
             success=True, action_type="enter_dungeon",
@@ -529,10 +568,13 @@ class ActionExecutor:
         )
 
     async def _handle_use_teleport_crystal(
-        self, player_id: str, state: dict, args: dict
+        self, player_id: str, state: dict, args: dict, trace_id: str = "no-trace"
     ) -> ActionResult:
+        logger.debug("trace=%s step=validate_permission action=use_teleport_crystal result=pass", trace_id)
+        
         floor_cfg = get_settings().game.floor
         floor = args.get("floor", 1)
+        logger.debug("trace=%s step=validate_precondition check=floor_range floor=%d max=%d", trace_id, floor, floor_cfg.max_floor)
         if floor < 1 or floor > floor_cfg.max_floor:
             return ActionResult(
                 success=False, action_type="use_teleport_crystal",
@@ -545,7 +587,8 @@ class ActionExecutor:
             "current_area": area,
             "current_location": "转移门广场",
         }
-        await state_service.save_player_state(player_id, changes)
+        await state_service.save_player_state(player_id, changes, trace_id=trace_id)
+        logger.debug("trace=%s step=state_write target=redis fields=%s", trace_id, list(changes.keys()))
 
         return ActionResult(
             success=True, action_type="use_teleport_crystal",
@@ -556,8 +599,10 @@ class ActionExecutor:
     # --- Interaction Handlers ---
 
     async def _handle_talk_to_npc(
-        self, player_id: str, state: dict, args: dict
+        self, player_id: str, state: dict, args: dict, trace_id: str = "no-trace"
     ) -> ActionResult:
+        logger.debug("trace=%s step=validate_permission action=talk_to_npc result=pass", trace_id)
+        
         npc_id = args.get("npc_id", "")
         topic = args.get("topic", "闲聊")
 
@@ -625,8 +670,10 @@ class ActionExecutor:
         )
 
     async def _handle_trade(
-        self, player_id: str, state: dict, args: dict
+        self, player_id: str, state: dict, args: dict, trace_id: str = "no-trace"
     ) -> ActionResult:
+        logger.debug("trace=%s step=validate_permission action=trade result=pass", trace_id)
+        
         npc_id = args.get("npc_id", "")
         action = args.get("action", "buy")
         item_id = args.get("item_id", "")
@@ -636,6 +683,7 @@ class ActionExecutor:
         item_def = await pool.fetchrow(
             "SELECT * FROM item_definitions WHERE id = $1", item_id,
         )
+        logger.debug("trace=%s step=validate_resource resource=item item_id=%s found=%s", trace_id, item_id, item_def is not None)
         if not item_def:
             return ActionResult(
                 success=False, action_type="trade", error=f"未知物品: {item_id}",
@@ -643,6 +691,7 @@ class ActionExecutor:
 
         col = int(state.get("col", 0))
         total_price = item_def["base_price"] * quantity
+        logger.debug("trace=%s step=validate_precondition check=col action=%s required=%d available=%d", trace_id, action, total_price, col)
 
         if action == "buy":
             if col < total_price:
@@ -651,7 +700,8 @@ class ActionExecutor:
                     error=f"珂尔不足。需要 {total_price} Col，当前 {col} Col",
                 )
             changes = {"col": col - total_price}
-            await state_service.save_player_state(player_id, changes)
+            await state_service.save_player_state(player_id, changes, trace_id=trace_id)
+            logger.debug("trace=%s step=state_write target=redis fields=%s", trace_id, list(changes.keys()))
 
             char_id = state.get("character_id")
             if char_id:
@@ -670,7 +720,8 @@ class ActionExecutor:
             npc_buy_rate = get_settings().game.economy.npc_buy_rate
             sell_price = int(total_price * npc_buy_rate)
             changes = {"col": col + sell_price}
-            await state_service.save_player_state(player_id, changes)
+            await state_service.save_player_state(player_id, changes, trace_id=trace_id)
+            logger.debug("trace=%s step=state_write target=redis fields=%s", trace_id, list(changes.keys()))
 
             return ActionResult(
                 success=True, action_type="trade",
@@ -679,9 +730,12 @@ class ActionExecutor:
             )
 
     async def _handle_accept_quest(
-        self, player_id: str, state: dict, args: dict
+        self, player_id: str, state: dict, args: dict, trace_id: str = "no-trace"
     ) -> ActionResult:
+        logger.debug("trace=%s step=validate_permission action=accept_quest result=pass", trace_id)
+        
         quest_id = args.get("quest_id", "")
+        logger.debug("trace=%s step=validate_precondition check=quest_id quest_id=%s", trace_id, quest_id)
         if not quest_id:
             return ActionResult(
                 success=False, action_type="accept_quest",
@@ -717,12 +771,15 @@ class ActionExecutor:
         )
 
     async def _handle_inspect(
-        self, player_id: str, state: dict, args: dict
+        self, player_id: str, state: dict, args: dict, trace_id: str = "no-trace"
     ) -> ActionResult:
+        logger.debug("trace=%s step=validate_permission action=inspect result=pass", trace_id)
+        
         target = args.get("target", "")
         int_mod = _stat_mod(state.get("stat_int", "10"))
         roll = _roll(20, 1, int_mod)
         dc = roll["total"]
+        logger.debug("trace=%s step=compute inspect_roll=%d int_mod=%d", trace_id, dc, int_mod)
 
         pool = get_pg()
         info = ""
@@ -785,8 +842,10 @@ class ActionExecutor:
     # --- Character Handlers ---
 
     async def _handle_check_status(
-        self, player_id: str, state: dict, args: dict
+        self, player_id: str, state: dict, args: dict, trace_id: str = "no-trace"
     ) -> ActionResult:
+        logger.debug("trace=%s step=validate_permission action=check_status result=pass", trace_id)
+        
         if not state:
             return ActionResult(
                 success=False, action_type="check_status", error="未创建角色",
@@ -808,9 +867,12 @@ class ActionExecutor:
         )
 
     async def _handle_check_inventory(
-        self, player_id: str, state: dict, args: dict
+        self, player_id: str, state: dict, args: dict, trace_id: str = "no-trace"
     ) -> ActionResult:
+        logger.debug("trace=%s step=validate_permission action=check_inventory result=pass", trace_id)
+        
         char_id = state.get("character_id")
+        logger.debug("trace=%s step=validate_precondition check=character_exists char_id=%s", trace_id, char_id)
         if not char_id:
             return ActionResult(
                 success=False, action_type="check_inventory", error="未创建角色",
@@ -850,12 +912,15 @@ class ActionExecutor:
         )
 
     async def _handle_equip_item(
-        self, player_id: str, state: dict, args: dict
+        self, player_id: str, state: dict, args: dict, trace_id: str = "no-trace"
     ) -> ActionResult:
+        logger.debug("trace=%s step=validate_permission action=equip_item result=pass", trace_id)
+        
         item_id = args.get("item_id", "")
         slot = args.get("slot", "")
 
         char_id = state.get("character_id")
+        logger.debug("trace=%s step=validate_precondition check=character_exists char_id=%s", trace_id, char_id)
         if not char_id:
             return ActionResult(success=False, action_type="equip_item", error="未创建角色")
 
@@ -901,6 +966,7 @@ class ActionExecutor:
                WHERE character_id = $1 AND equipped_slot = $2 AND is_equipped = true""",
             uuid.UUID(char_id), slot,
         )
+        logger.debug("trace=%s step=state_write target=postgres action=unequip slot=%s", trace_id, slot)
 
         # Equip the new item
         await pool.execute(
@@ -909,6 +975,7 @@ class ActionExecutor:
                WHERE id = $2""",
             slot, inv["inv_id"],
         )
+        logger.debug("trace=%s step=state_write target=postgres action=equip item=%s slot=%s", trace_id, item_id, slot)
 
         stat_info = ""
         if inv["weapon_atk"]:
@@ -923,11 +990,14 @@ class ActionExecutor:
         )
 
     async def _handle_rest(
-        self, player_id: str, state: dict, args: dict
+        self, player_id: str, state: dict, args: dict, trace_id: str = "no-trace"
     ) -> ActionResult:
+        logger.debug("trace=%s step=validate_permission action=rest result=pass", trace_id)
+        
         rest_type = args.get("rest_type", "short")
         current_hp = int(state.get("current_hp", 0))
         max_hp = int(state.get("max_hp", 250))
+        logger.debug("trace=%s step=validate_precondition check=hp current=%d max=%d", trace_id, current_hp, max_hp)
 
         if rest_type == "long":
             new_hp = max_hp
@@ -939,7 +1009,7 @@ class ActionExecutor:
             description = f"短休（1小时），恢复 {heal} HP。当前 HP: {new_hp}/{max_hp}"
 
         changes = {"current_hp": new_hp}
-        await state_service.save_player_state(player_id, changes)
+        await state_service.save_player_state(player_id, changes, trace_id=trace_id)
 
         return ActionResult(
             success=True, action_type="rest",
@@ -948,14 +1018,18 @@ class ActionExecutor:
         )
 
     async def _handle_roll_dice(
-        self, player_id: str, state: dict, args: dict
+        self, player_id: str, state: dict, args: dict, trace_id: str = "no-trace"
     ) -> ActionResult:
+        logger.debug("trace=%s step=validate_permission action=roll_dice result=pass", trace_id)
+        
         sides = args.get("sides", 20)
         count = args.get("count", 1)
         modifier = args.get("modifier", 0)
 
         result = _roll(sides, count, modifier)
         dice_str = f"{count}d{sides}" + (f"+{modifier}" if modifier > 0 else f"{modifier}" if modifier < 0 else "")
+        
+        logger.debug("trace=%s step=compute roll=%s total=%d", trace_id, result['rolls'], result['total'])
 
         return ActionResult(
             success=True, action_type="roll_dice",

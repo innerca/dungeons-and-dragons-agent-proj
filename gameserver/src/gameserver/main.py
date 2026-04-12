@@ -22,8 +22,10 @@ from dotenv import load_dotenv
 _project_root = Path(__file__).parent.parent.parent.parent
 load_dotenv(_project_root / ".env")
 
+# Configure logging level from environment
+log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, log_level, logging.INFO),
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger(__name__)

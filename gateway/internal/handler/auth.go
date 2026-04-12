@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	gamev1 "github.com/innerca/dungeons-and-dragons-agent-proj/gateway/gen/game/v1"
 	grpcclient "github.com/innerca/dungeons-and-dragons-agent-proj/gateway/internal/grpc"
@@ -35,13 +36,18 @@ type authResponse struct {
 }
 
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
+	traceID := generateTraceID()
+	startTime := time.Now()
+
 	var req registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("[ERROR] trace=%s step=auth_register status=error error=\"invalid_request_body\"", traceID)
 		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
 		return
 	}
 
 	if req.Username == "" || req.Password == "" {
+		log.Printf("[ERROR] trace=%s step=auth_register status=error error=\"missing_credentials\"", traceID)
 		http.Error(w, `{"error":"username and password are required"}`, http.StatusBadRequest)
 		return
 	}
@@ -49,23 +55,29 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		req.DisplayName = req.Username
 	}
 
+	log.Printf("[INFO] trace=%s step=auth_register user=%s", traceID, req.Username)
+
 	resp, err := h.grpcClient.CreatePlayer(r.Context(), &gamev1.CreatePlayerRequest{
 		Username:    req.Username,
 		DisplayName: req.DisplayName,
 		Password:    req.Password,
-	})
+	}, traceID)
 	if err != nil {
-		log.Printf("Register gRPC error: %v", err)
+		log.Printf("[ERROR] trace=%s step=grpc_create_player status=error error=\"%s\"", traceID, err.Error())
 		http.Error(w, `{"error":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
 
 	if resp.Error != "" {
+		log.Printf("[ERROR] trace=%s step=auth_register status=error error=\"%s\"", traceID, resp.Error)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(authResponse{Error: resp.Error})
 		return
 	}
+
+	latencyMs := time.Since(startTime).Milliseconds()
+	log.Printf("[INFO] trace=%s step=auth_register_complete player_id=%s latency_ms=%d", traceID, resp.PlayerId, latencyMs)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -76,33 +88,44 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
+	traceID := generateTraceID()
+	startTime := time.Now()
+
 	var req loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("[ERROR] trace=%s step=auth_login status=error error=\"invalid_request_body\"", traceID)
 		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
 		return
 	}
 
 	if req.Username == "" || req.Password == "" {
+		log.Printf("[ERROR] trace=%s step=auth_login status=error error=\"missing_credentials\"", traceID)
 		http.Error(w, `{"error":"username and password are required"}`, http.StatusBadRequest)
 		return
 	}
 
+	log.Printf("[INFO] trace=%s step=auth_login user=%s", traceID, req.Username)
+
 	resp, err := h.grpcClient.AuthenticatePlayer(r.Context(), &gamev1.AuthRequest{
 		Username: req.Username,
 		Password: req.Password,
-	})
+	}, traceID)
 	if err != nil {
-		log.Printf("Login gRPC error: %v", err)
+		log.Printf("[ERROR] trace=%s step=grpc_auth_player status=error error=\"%s\"", traceID, err.Error())
 		http.Error(w, `{"error":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
 
 	if resp.Error != "" {
+		log.Printf("[ERROR] trace=%s step=auth_login status=error error=\"%s\"", traceID, resp.Error)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(authResponse{Error: resp.Error})
 		return
 	}
+
+	latencyMs := time.Since(startTime).Milliseconds()
+	log.Printf("[INFO] trace=%s step=auth_login_complete player_id=%s latency_ms=%d", traceID, resp.PlayerId, latencyMs)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(authResponse{
@@ -127,22 +150,30 @@ type createCharacterResponse struct {
 }
 
 func (h *AuthHandler) CreateCharacter(w http.ResponseWriter, r *http.Request) {
+	traceID := generateTraceID()
+	startTime := time.Now()
+
 	playerID := r.Context().Value("player_id")
 	if playerID == nil {
+		log.Printf("[ERROR] trace=%s step=create_character status=error error=\"unauthorized\"", traceID)
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
 
 	var req createCharacterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("[ERROR] trace=%s step=create_character status=error error=\"invalid_request_body\"", traceID)
 		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
 		return
 	}
 
 	if req.Name == "" {
+		log.Printf("[ERROR] trace=%s step=create_character status=error error=\"missing_name\"", traceID)
 		http.Error(w, `{"error":"character name is required"}`, http.StatusBadRequest)
 		return
 	}
+
+	log.Printf("[INFO] trace=%s step=create_character player_id=%s name=%s", traceID, playerID.(string), req.Name)
 
 	resp, err := h.grpcClient.CreateCharacter(r.Context(), &gamev1.CreateCharacterRequest{
 		PlayerId: playerID.(string),
@@ -153,19 +184,23 @@ func (h *AuthHandler) CreateCharacter(w http.ResponseWriter, r *http.Request) {
 		StatInt:  req.StatINT,
 		StatDex:  req.StatDEX,
 		StatLuk:  req.StatLUK,
-	})
+	}, traceID)
 	if err != nil {
-		log.Printf("CreateCharacter gRPC error: %v", err)
+		log.Printf("[ERROR] trace=%s step=grpc_create_character status=error error=\"%s\"", traceID, err.Error())
 		http.Error(w, `{"error":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
 
 	if resp.Error != "" {
+		log.Printf("[ERROR] trace=%s step=create_character status=error error=\"%s\"", traceID, resp.Error)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(createCharacterResponse{Error: resp.Error})
 		return
 	}
+
+	latencyMs := time.Since(startTime).Milliseconds()
+	log.Printf("[INFO] trace=%s step=create_character_complete character_id=%s latency_ms=%d", traceID, resp.CharacterId, latencyMs)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -173,27 +208,37 @@ func (h *AuthHandler) CreateCharacter(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) GetPlayerState(w http.ResponseWriter, r *http.Request) {
+	traceID := generateTraceID()
+	startTime := time.Now()
+
 	playerID := r.Context().Value("player_id")
 	if playerID == nil {
+		log.Printf("[ERROR] trace=%s step=get_player_state status=error error=\"unauthorized\"", traceID)
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
 
+	log.Printf("[INFO] trace=%s step=get_player_state player_id=%s", traceID, playerID.(string))
+
 	resp, err := h.grpcClient.GetPlayerState(r.Context(), &gamev1.GetPlayerStateRequest{
 		PlayerId: playerID.(string),
-	})
+	}, traceID)
 	if err != nil {
-		log.Printf("GetPlayerState gRPC error: %v", err)
+		log.Printf("[ERROR] trace=%s step=grpc_get_player_state status=error error=\"%s\"", traceID, err.Error())
 		http.Error(w, `{"error":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
 
 	if resp.Error != "" {
+		log.Printf("[ERROR] trace=%s step=get_player_state status=error error=\"%s\"", traceID, resp.Error)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(map[string]string{"error": resp.Error})
 		return
 	}
+
+	latencyMs := time.Since(startTime).Milliseconds()
+	log.Printf("[INFO] trace=%s step=get_player_state_complete player_id=%s latency_ms=%d", traceID, playerID.(string), latencyMs)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)

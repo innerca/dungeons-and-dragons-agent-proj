@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -8,6 +8,18 @@ from typing import Any
 class ChatMessage:
     role: str  # "system", "user", "assistant", "tool"
     content: str
+    tool_calls: list[dict] | None = None
+    tool_call_id: str | None = None
+
+
+@dataclass
+class LLMResponse:
+    """Standardized LLM response with token usage info."""
+    content: str | None = None
+    tool_calls: list[Any] = field(default_factory=list)
+    input_tokens: int = 0
+    output_tokens: int = 0
+    latency_ms: float = 0.0
 
 
 class LLMProvider(ABC):
@@ -15,7 +27,7 @@ class LLMProvider(ABC):
 
     @abstractmethod
     async def stream_chat(
-        self, messages: list[ChatMessage]
+        self, messages: list[ChatMessage], trace_id: str = "no-trace"
     ) -> AsyncIterator[str]:
         """Stream chat completion, yielding text chunks."""
         ...
@@ -26,9 +38,9 @@ class LLMProvider(ABC):
         ...
 
     async def chat_with_tools(
-        self, messages: list[ChatMessage], tools: list[dict]
-    ) -> Any:
-        """Chat with function/tool calling support. Returns raw response.
+        self, messages: list[ChatMessage], tools: list[dict], trace_id: str = "no-trace"
+    ) -> LLMResponse:
+        """Chat with function/tool calling support. Returns LLMResponse.
 
         Default implementation raises AttributeError (provider doesn't support tools).
         """

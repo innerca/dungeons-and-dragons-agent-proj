@@ -111,12 +111,14 @@ def _combat_key(player_id: str) -> str:
 async def start_combat(
     player_id: str,
     monster_def: dict,
+    trace_id: str = "no-trace",
 ) -> CombatSession:
     """Start a new combat session from a monster_definitions row.
 
     Args:
         player_id: The player's UUID
         monster_def: Dict with monster definition fields (from PG or YAML)
+        trace_id: Trace ID for logging
 
     Returns:
         New CombatSession stored in Redis
@@ -151,7 +153,10 @@ async def start_combat(
     await r.hset(key, mapping=session.to_redis_hash())
     await r.expire(key, get_settings().game.combat.combat_state_ttl_seconds)
 
-    logger.info("Combat started: %s vs %s (HP: %d)", player_id[:8], monster.name, monster.hp)
+    logger.info(
+        "trace=%s step=combat_start player=%s monster=%s hp=%d atk=%d def=%d ac=%d is_boss=%s",
+        trace_id, player_id[:8], monster.name, monster.hp, monster.atk, monster.defense, monster.ac, is_boss
+    )
     return session
 
 
@@ -164,19 +169,26 @@ async def get_combat(player_id: str) -> CombatSession | None:
     return CombatSession.from_redis_hash(player_id, data)
 
 
-async def update_combat(session: CombatSession) -> None:
+async def update_combat(session: CombatSession, trace_id: str = "no-trace") -> None:
     """Persist updated combat state to Redis."""
     r = get_redis()
     key = _combat_key(session.player_id)
     await r.hset(key, mapping=session.to_redis_hash())
     await r.expire(key, get_settings().game.combat.combat_state_ttl_seconds)
+    
+    m = session.monster
+    hp_pct = (m.hp / m.max_hp * 100) if m.max_hp > 0 else 0
+    logger.info(
+        "trace=%s step=combat_update round=%d monster_hp=%d/%d hp_pct=%.1f%%",
+        trace_id, session.round_number, m.hp, m.max_hp, hp_pct
+    )
 
 
-async def end_combat(player_id: str) -> None:
+async def end_combat(player_id: str, trace_id: str = "no-trace", reason: str = "completed") -> None:
     """End and clean up a combat session."""
     r = get_redis()
     await r.delete(_combat_key(player_id))
-    logger.info("Combat ended for %s", player_id[:8])
+    logger.info("trace=%s step=combat_end player=%s reason=%s", trace_id, player_id[:8], reason)
 
 
 @dataclass
@@ -192,6 +204,7 @@ def calculate_counter_attack(
     monster: MonsterState,
     player_ac: int,
     player_defense: int = 0,
+    trace_id: str = "no-trace",
 ) -> CounterAttackResult:
     """Calculate monster's automatic counter-attack after player's turn.
 
@@ -203,6 +216,7 @@ def calculate_counter_attack(
         monster: Current monster state
         player_ac: Player's armor class
         player_defense: Player's defense value (from equipped armor)
+        trace_id: Trace ID for logging
 
     Returns:
         CounterAttackResult with roll, hit status, damage, and description
@@ -210,6 +224,11 @@ def calculate_counter_attack(
     # d20 attack roll
     attack_roll = random.randint(1, 20)
     hits = attack_roll >= player_ac
+    
+    logger.debug(
+        "trace=%s step=counter_attack roll=%d vs_ac=%d hits=%s",
+        trace_id, attack_roll, player_ac, hits
+    )
 
     if not hits:
         return CounterAttackResult(
@@ -238,6 +257,11 @@ def calculate_counter_attack(
             f"{monster.name}发动反击（骰子: {attack_roll} vs AC {player_ac}），"
             f"命中！造成 {final_damage} 点伤害。"
         )
+    
+    logger.debug(
+        "trace=%s step=counter_attack damage=%d",
+        trace_id, final_damage
+    )
 
     return CounterAttackResult(
         attack_roll=attack_roll,

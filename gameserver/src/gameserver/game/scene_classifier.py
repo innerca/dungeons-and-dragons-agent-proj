@@ -53,6 +53,7 @@ _ALL_TOOL_NAMES: set[str] | None = None
 def classify_scene(
     message: str,
     scene_keywords: dict[str, list[str]] | None = None,
+    trace_id: str = "no-trace",
 ) -> SceneType:
     """Classify the player's message into a scene type.
 
@@ -60,6 +61,7 @@ def classify_scene(
         message: The player's input message
         scene_keywords: Optional keyword mapping from game config.
             Format: {"combat": ["攻击", "战斗", ...], "social": [...], ...}
+        trace_id: Trace ID for logging
 
     Returns:
         The detected SceneType
@@ -75,6 +77,7 @@ def classify_scene(
 
     scores: dict[str, int] = {}
     msg_lower = message.lower()
+    msg_preview = message[:50] + "..." if len(message) > 50 else message
 
     for scene_name, keywords in scene_keywords.items():
         score = sum(1 for kw in keywords if kw in msg_lower)
@@ -82,12 +85,16 @@ def classify_scene(
             scores[scene_name] = score
 
     if not scores:
+        logger.debug("trace=%s step=scene_classify input='%s' result=general", trace_id, msg_preview)
         return SceneType.GENERAL
 
     best = max(scores, key=scores.get)  # type: ignore[arg-type]
     try:
-        return SceneType(best)
+        scene_type = SceneType(best)
+        logger.debug("trace=%s step=scene_classify input='%s' result=%s scores=%s", trace_id, msg_preview, best, scores)
+        return scene_type
     except ValueError:
+        logger.debug("trace=%s step=scene_classify input='%s' result=general error=invalid_scene", trace_id, msg_preview)
         return SceneType.GENERAL
 
 

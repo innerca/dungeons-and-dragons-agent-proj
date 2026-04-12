@@ -24,9 +24,10 @@ func NewHTTPServer(cfg *config.Config, grpcClient *grpcclient.Client, rdb *redis
 
 	// Shared response channels between WS and SSE handlers
 	channels := handler.NewResponseChannels()
+	traceChannel := handler.NewTraceChannel()
 
-	wsHandler := handler.NewWebSocketHandler(grpcClient, channels)
-	sseHandler := handler.NewSSEHandler(channels, cfg)
+	wsHandler := handler.NewWebSocketHandler(grpcClient, channels, traceChannel)
+	sseHandler := handler.NewSSEHandler(channels, traceChannel, cfg)
 	authHandler := handler.NewAuthHandler(grpcClient)
 
 	// Public routes (no auth required)
