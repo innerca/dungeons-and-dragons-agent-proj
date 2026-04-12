@@ -50,5 +50,8 @@ Thumbs.db
 # EPUB files (large binary)
 *.epub
 
+# Asset directory (epub and converted txt files)
+asset/sao/
+
 # ChromaDB local data
 gameserver/data/

@@ -1,6 +1,6 @@
 # Dungeons & Dragons Agent Project
 
-> **当前版本：v0.5001** | [更新日志](#更新日志)
+> **当前版本：v0.5002** | [更新日志](#更新日志)
 
 AI 驱动的 DND 游戏项目，基于微服务架构构建。以刀剑神域 Progressive 系列小说为世界观基础，通过 RAG 检索增强生成实现沉浸式游戏体验。
 
@@ -149,8 +149,9 @@ make help
 | 数据库 | PostgreSQL 16 + Redis 7 + ChromaDB (嵌入式) |
 | 容器化 | Docker Compose |
 | Python 包管理 | uv |
-| LLM | DeepSeek (默认)，支持多模型切换 |
+| LLM | DeepSeek (默认)，支持多模型切换 + 熔断降级 |
 | 知识库 | ChromaDB + BGE-small-zh (中文向量检索) |
+| 可观测性 | 全链路 trace_id + 结构化日志 + 请求指标追踪 |
 
 ## 安全原则
 
@@ -270,8 +271,10 @@ make verify-vectordb
 │   │   │   ├── scene_classifier.py  # 场景分类 + 工具/RAG 裁剪
 │   │   │   ├── context_builder.py   # 6 层上下文组装
 │   │   │   └── tools.py             # ReAct 工具定义
-│   │   ├── llm/        # LLM 提供商 (DeepSeek/OpenAI/Claude)
+│   │   ├── llm/        # LLM 提供商 (DeepSeek/OpenAI/Claude) + 熔断器
+│   │   │   └── circuit_breaker.py   # 三态熔断器 + 滑动窗口检测
 │   │   └── service/    # 业务逻辑层
+│   │       └── request_metrics.py   # 请求指标追踪 + 成本估算
 │   └── scripts/        # 数据库初始化/迁移/数据管理/向量化
 │       └── migrations/  # SQL 迁移 (v0500_schema.sql)
 ├── scripts/            # 一键启动/停止脚本 (含环境检测)
@@ -285,6 +288,29 @@ make verify-vectordb
 ```
 
 ## 更新日志
+
+### v0.5002 (2026-04-13) - 全链路可观测性 + LLM 熔断降级
+
+**可观测性增强**
+- **全链路 trace_id 追踪**: Gateway 生成 → gRPC metadata 传递 → GameServer 全模块贯穿 → 前端回传，完整追踪每个请求
+- **结构化日志**: key=value 格式，覆盖 DEBUG/INFO/WARN/ERROR/FATAL 五级，支持日志解析和聚合
+- **请求指标追踪** (`request_metrics.py`): RAG 检索、LLM 调用、工具执行的关键步骤耗时统计
+- **请求摘要日志**: 单条日志汇总整条链路（总耗时、RAG/LLM/工具耗时、Token 数、成本估算）
+- **Token 成本估算**: 支持 DeepSeek、GPT-4o、Claude 等主流模型定价，自动计算每次请求成本
+- **慢请求告警**: 总耗时 >5s 自动触发 WARN 级别告警，附带各环节耗时分解
+
+**LLM 熔断降级** (`circuit_breaker.py`)
+- **轻量级三态熔断器**: CLOSED → OPEN → HALF_OPEN 状态机，线程安全实现
+- **滑动窗口失败率检测**: 60s 窗口内失败率 >50% 且请求数 >=5 触发熔断
+- **自动 fallback provider 切换**: 主 provider 熔断后自动切换到备用 provider
+- **指数退避重试**: OPEN 状态持续 30s 后进入 HALF_OPEN 探测恢复状态
+
+**五步验证链日志**
+- 工具调用的 Permission → Precondition → Resource → Compute → State Write 全链路 DEBUG 日志
+- 每个步骤记录耗时和结果，便于问题定位
+
+**战斗系统状态日志**
+- 战斗开始/更新/结束全流程日志，包含战斗 ID、参与者、回合信息、伤害数值
 
 ### v0.5001 (2026-04-07) - Bug 修复 + 全面配置化
 

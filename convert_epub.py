@@ -68,7 +68,8 @@ def epub_to_text(epub_path):
 
 def main():
     asset_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "asset")
-    epub_files = glob.glob(os.path.join(asset_dir, "*.epub"))
+    # Recursively find all epub files in asset/ directory
+    epub_files = glob.glob(os.path.join(asset_dir, "**", "*.epub"), recursive=True)
 
     if not epub_files:
         print("No EPUB files found in asset/ directory.")
@@ -80,9 +81,10 @@ def main():
         basename = os.path.splitext(os.path.basename(epub_path))[0]
         # Clean up filename for output
         txt_filename = basename + ".txt"
-        txt_path = os.path.join(asset_dir, txt_filename)
+        # Output txt file in the same directory as the epub file
+        txt_path = os.path.join(os.path.dirname(epub_path), txt_filename)
 
-        print(f"Converting: {os.path.basename(epub_path)} -> {txt_filename}")
+        print(f"Converting: {epub_path} -> {txt_filename}")
         try:
             text = epub_to_text(epub_path)
             with open(txt_path, "w", encoding="utf-8") as f:
