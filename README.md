@@ -36,6 +36,12 @@ AI 驱动的 DND 游戏项目，基于微服务架构构建。以刀剑神域 Pr
 
 这是我的思考过程，希望对你能有些拓扑性的帮助。anyway，我并不擅长在短时间写算法题。工程不是一道算法，是在成本和需求之间的妥协。
 
+## Demo 演示
+
+https://github.com/innerca/dungeons-and-dragons-agent-proj/blob/main/output_40MB.mp4
+
+> 视频展示了完整的游戏流程，包含角色创建、世界探索、战斗系统等核心功能。
+
 ## 快速启动
 
 **你需要有小说内容才能启动！**
