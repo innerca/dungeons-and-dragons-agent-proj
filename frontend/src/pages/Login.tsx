@@ -19,17 +19,23 @@ export function Login({ onAuth }: Props) {
     setLoading(true);
 
     try {
+      console.log(`[Login] Attempting ${isRegister ? 'register' : 'login'} for user: ${username}`);
       const resp = isRegister
         ? await register(username, displayName || username, password)
         : await login(username, password);
 
+      console.log(`[Login] Response:`, resp);
+
       if (resp.error) {
         setError(resp.error);
-      } else {
+      } else if (resp.token && resp.player_id) {
         onAuth(resp.player_id, resp.token);
+      } else {
+        setError('Invalid response from server');
       }
     } catch (err) {
-      setError('Connection failed');
+      console.error(`[Login] Error:`, err);
+      setError('Connection failed - check console for details');
     } finally {
       setLoading(false);
     }

@@ -40,6 +40,20 @@ SYSTEM_PROMPT = """你是一位经验丰富的 DND 地下城主（Dungeon Master
 - 用「」标记 NPC 对话，用（）标记系统信息
 - 回复控制在 200-400 字之间，除非是重大剧情场景"""
 
+FIRST_MESSAGE_GUIDE = """## 新玩家欢迎引导
+
+这是玩家的第一次冒险。请以游戏大师（DM）的身份生成一段 200-300 字的欢迎词，必须包含：
+
+1. **世界观简介**（3-4句）：你们被困在浮游城堡艾恩葛朗特，死亡意味着真正的消亡，唯一的出路是逐层攻略到第100层。
+2. **初始行动建议**：
+   - 先在起始之城周围的草原狩猎山猪、野狼积累经验和珂尔
+   - 等级提升后前往北方的托尔巴纳镇，那里有铁匠和任务NPC
+   - 可以使用「查看状态」查看属性，「查看背包」查看道具
+3. **安全提醒**：城镇内有防犯罪指令保护，离开城镇就要自负安全
+4. **鼓励冒险**：以热情但带紧张感的语气邀请玩家做出第一个选择
+
+语气要求：像一位经验丰富的前辈剑士在向新手介绍这个世界，兼具热情与严肃。不要使用markdown格式，用自然的叙事语气。"""
+
 
 @dataclass
 class GameContext:
@@ -161,6 +175,7 @@ async def build_context(
     tools: list[dict],
     rag_chunks: list[str] | None = None,
     trace_id: str = "no-trace",
+    is_first_message: bool = False,
 ) -> GameContext:
     """Build the full LLM context from 3-layer memory.
 
@@ -170,14 +185,19 @@ async def build_context(
         tools: OpenAI-format tool definitions for ReAct
         rag_chunks: Optional RAG retrieval results from ChromaDB
         trace_id: Trace ID for logging
+        is_first_message: Whether this is the player's first message
     """
     import time
     start_time = time.time()
-    
+
     ctx = GameContext(tools=tools)
 
     # Layer 1: System prompt (DM persona + world rules)
     ctx.messages.append({"role": "system", "content": SYSTEM_PROMPT})
+
+    # Layer 1.5: First message guide for new players
+    if is_first_message:
+        ctx.messages.append({"role": "system", "content": FIRST_MESSAGE_GUIDE})
     system_tokens = len(SYSTEM_PROMPT) // 4  # Rough estimate: 4 chars per token
 
     # Layer 2: Player state snapshot (from Redis/PG)

@@ -33,6 +33,7 @@ export function Home({ onLogout }: Props) {
   const { streamingText, isStreaming, error, startStream } = useSSE();
   const chatEndRef = useRef<HTMLDivElement>(null);
   const activeIdRef = useRef<string>('');
+  const hasTriggeredWelcomeRef = useRef<boolean>(false);
 
   // Load player state
   useEffect(() => {
@@ -89,6 +90,18 @@ export function Home({ onLogout }: Props) {
     },
     [send, model],
   );
+
+  // Auto-trigger welcome message for new players
+  useEffect(() => {
+    if (messages.length === 0 && playerState?.character_name && !hasTriggeredWelcomeRef.current) {
+      hasTriggeredWelcomeRef.current = true;
+      // Delay a bit for page render to complete
+      const timer = setTimeout(() => {
+        handleSend("开始冒险");
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [messages.length, playerState?.character_name, handleSend]);
 
   return (
     <div className="app">

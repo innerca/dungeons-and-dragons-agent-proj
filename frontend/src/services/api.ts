@@ -13,7 +13,10 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const resp = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const url = `${API_BASE}${path}`;
+  console.log(`[API] ${options.method || 'GET'} ${url}`);
+  
+  const resp = await fetch(url, { ...options, headers });
   const data = await resp.json();
 
   if (!resp.ok && !data.error) {

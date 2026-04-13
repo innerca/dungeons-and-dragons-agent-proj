@@ -92,9 +92,13 @@ class ChatService:
         provider_name = model if model in self._settings.llm.providers else None
         provider = self._get_provider(provider_name)
 
+        # Check if this is the first message (before saving)
+        history = await state_service.get_recent_messages(player_id, count=1)
+        is_first_message = len(history) == 0
+
         # Save user message
         await state_service.push_message(player_id, "user", message)
-        logger.debug("trace=%s step=message_save role=user", trace_id)
+        logger.debug("trace=%s step=message_save role=user is_first=%s", trace_id, is_first_message)
 
         # Scene classification for dynamic pruning
         scene_keywords = self._settings.game.scene_keywords if self._settings.game.scene_keywords else None
@@ -137,7 +141,11 @@ class ChatService:
             logger.warning("trace=%s step=rag_retrieve status=error error=%s latency_ms=%.1f", trace_id, e, rag_latency_ms)
 
         # Build context (3-layer memory + RAG + pruned tools)
-        ctx = await build_context(player_id, message, pruned_tools, rag_chunks=rag_chunks, trace_id=trace_id)
+        ctx = await build_context(
+            player_id, message, pruned_tools,
+            rag_chunks=rag_chunks, trace_id=trace_id,
+            is_first_message=is_first_message
+        )
 
         logger.info(
             "trace=%s step=game_start player=%s provider=%s msg=%s",

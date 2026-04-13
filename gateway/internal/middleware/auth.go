@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"strings"
 
@@ -21,10 +22,13 @@ func Auth(rdb *redis.Client, authKeyPrefix string) func(http.Handler) http.Handl
 
 			playerID, err := rdb.Get(r.Context(), authKeyPrefix+token).Result()
 			if err == redis.Nil || playerID == "" {
+				// Log for debugging - token not found in Redis
+				log.Printf("[AUTH] Token not found in Redis: key=%s...", authKeyPrefix+token[:8])
 				http.Error(w, `{"error":"invalid or expired token"}`, http.StatusUnauthorized)
 				return
 			}
 			if err != nil {
+				log.Printf("[AUTH] Redis error: %v", err)
 				http.Error(w, `{"error":"auth service unavailable"}`, http.StatusServiceUnavailable)
 				return
 			}
