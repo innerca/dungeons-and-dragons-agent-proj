@@ -224,3 +224,18 @@ jobs:
     - name: Stop services
       if: always()
       run: docker compose down
+
+  # Weekly branch cleanup
+  cleanup-branches:
+    name: Cleanup Branches
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Clean up branches
+      run: |
+        chmod +x scripts/clean-branches.sh
+        bash scripts/clean-branches.sh --force
+      continue-on-error: true
