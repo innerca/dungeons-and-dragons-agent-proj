@@ -12,7 +12,7 @@ https://github.com/innerca/dungeons-and-dragons-agent-proj/blob/main/output_40MB
 
 ## 🔖 快速索引
 
-**快速开始** → [Docker 启动](#方式一docker-一键启动推荐) | [本地开发](#方式二本地开发) | [环境要求](#环境要求)
+**快速开始** → [Docker 启动](#方式一docker-一键启动推荐) | [本地开发](#方式二本地开发) | [环境要求](#环境要求) | [运行测试](#运行测试)
 
 **核心文档** → [架构设计](#架构) | [技术栈](#技术栈) | [安全原则](#安全原则) | [项目结构](#项目结构)
 
@@ -44,6 +44,8 @@ make start
 # 4. 一键停止
 make stop
 ```
+
+> **Demo 数据**: 首次启动时会自动初始化 demo 数据（测试账号、示例文本 chunks）
 
 ### 方式一：Docker 一键启动（推荐）
 
@@ -163,6 +165,20 @@ make help
 | 成本熔断 | 模拟超长对话或循环调用 | 达到阈值时终止或上报 |
 | 审计完整性 | 检查所有关键事件日志 | 日志完整且防篡改 |
 
+## 运行测试
+
+### Python GameServer
+
+```bash
+cd gameserver && uv run pytest tests/ -v
+```
+
+### Go Gateway
+
+```bash
+cd gateway && GO111MODULE=on go test ./... -v
+```
+
 ## 环境要求
 
 **Docker 方式（推荐）：**
@@ -277,7 +293,19 @@ make verify-vectordb
 
 ## 更新日志
 
-### v0.5002 (2026-04-13) - 全链路可观测性 + LLM 熔断降级
+### v0.5002 (2026-04-14) - 测试覆盖 + Demo 数据
+
+**测试体系**
+- **Python GameServer**: 95 个单元测试覆盖核心游戏模块（战斗、动作、任务、NPC、世界标记、场景分类、上下文构建）
+- **Go Gateway**: 10 个单元测试覆盖响应通道并发安全和配置加载
+- 测试依赖：pytest + pytest-asyncio + pytest-mock + fakeredis
+
+**Demo 数据包**
+- `seed_players.sql`: 2 个测试账号和角色数据
+- `sample_chunks.json`: 20 个 DND 风格示例文本 chunks
+- `demo_setup.sh`: 一键初始化脚本，首次启动自动执行
+
+### v0.5001 (2026-04-13) - 全链路可观测性 + LLM 熔断降级
 
 **可观测性增强**
 - **全链路 trace_id 追踪**: Gateway 生成 → gRPC metadata 传递 → GameServer 全模块贯穿 → 前端回传，完整追踪每个请求
