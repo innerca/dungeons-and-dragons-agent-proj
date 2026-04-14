@@ -193,10 +193,11 @@ cd gateway && GO111MODULE=on go test ./... -coverprofile=coverage.out && go tool
 
 ### 总体统计
 - ✅ **Python GameServer 测试**: 241 passed, 0 skipped, 0 failed
-- ✅ **Go Gateway 测试**: 7个测试文件覆盖核心模块（grpc/handler/middleware/server）
+- ✅ **Go Gateway 测试**: 52个测试用例，38个通过，7个测试文件
 - ✅ **Python 行覆盖率**: **52.30%** (1224/2306)
 - ✅ **Python 分支覆盖率**: **50%** (287/568)
-- ✅ **CI 集成**: GitHub Actions 自动运行双端测试 + 覆盖率检查
+- ✅ **Go Gateway 语句覆盖率**: **41.4%**
+- ✅ **CI 集成**: GitHub Actions 自动运行双端测试 + 覆盖率检查（Go阈值40%）
 
 ### 核心模块覆盖率
 
@@ -214,15 +215,15 @@ cd gateway && GO111MODULE=on go test ./... -coverprofile=coverage.out && go tool
 
 ### Go Gateway 测试覆盖
 
-| 模块 | 测试文件 | 测试内容 | 状态 |
-|------|---------|---------|------|
-| grpc/client | grpc_test.go | gRPC客户端连接和流式响应 | ✅ 已覆盖 |
-| handler/auth | auth_test.go | 认证中间件、Token验证、权限检查 | ✅ 已覆盖 |
-| handler/channels | channels_test.go | 响应通道并发安全 | ✅ 已覆盖 |
-| handler/sse | sse_test.go | SSE流式响应处理 | ✅ 已覆盖 |
-| handler/websocket | websocket_test.go | WebSocket连接和消息处理 | ✅ 已覆盖 |
-| middleware | middleware_test.go | Auth中间件、CORS、请求日志 | ✅ 已覆盖 |
-| server | server_test.go | HTTP服务器启动和配置 | ✅ 已覆盖 |
+| 模块 | 测试文件 | 覆盖率 | 测试内容 |
+|------|---------|--------|---------|
+| grpc/client | grpc_test.go | 0.0% | gRPC客户端连接和流式响应（无测试用例） |
+| handler/* | auth/channels/sse/websocket_test.go | 34.7% | 认证、通道、SSE、WebSocket处理 |
+| middleware/* | auth/cors/middleware_test.go | 76.0% | Auth中间件、CORS、请求日志 |
+| server/* | server_test.go | 100.0% | HTTP服务器启动和配置 |
+| config/* | config_test.go | 100.0% | 配置加载和验证 |
+
+**注**：Go覆盖率只统计语句覆盖率（statement coverage），不统计分支覆盖率。
 
 ### 测试质量
 - ✅ 边界条件测试（HP=0、最小伤害、属性极值）
