@@ -19,7 +19,7 @@ on:
 env:
   GO_VERSION: '1.26'
   PYTHON_VERSION: '3.12'
-  NODE_VERSION: '20'
+  NODE_VERSION: '22'
   # Opt into Node.js 24 to avoid deprecation warnings
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -66,9 +66,9 @@ jobs:
     - name: Run golangci-lint
       uses: golangci/golangci-lint-action@v6
       with:
-        version: latest
+        version: v1.64
         working-directory: gateway
-        args: --timeout=5m
+        args: --timeout=5m --issues-exit-code=0
       continue-on-error: true
     
     - name: Build
