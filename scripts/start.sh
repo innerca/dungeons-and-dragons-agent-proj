@@ -182,6 +182,18 @@ start_local() {
     info "Generating gRPC code..."
     make proto-gen
 
+    # Demo 数据初始化（仅在数据库为空时执行）
+    echo ""
+    info "检查是否需要初始化 Demo 数据..."
+    PLAYER_COUNT=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM players;" 2>/dev/null | tr -d ' ' || echo "0")
+    if [ "$PLAYER_COUNT" = "0" ]; then
+        log "数据库为空，执行 Demo 数据初始化..."
+        bash "$SCRIPT_DIR/demo_setup.sh"
+    else
+        info "检测到已有 $PLAYER_COUNT 个玩家，跳过 Demo 初始化"
+    fi
+    echo ""
+
     # Start services in background
     log "Starting GameServer on :50051..."
     (cd gameserver && PYTHONPATH=src:gen DATABASE_URL="${DATABASE_URL:-postgresql://sao:sao_dev_password@localhost:5432/sao_game}" REDIS_URL="${REDIS_URL:-redis://localhost:6379/0}" HF_ENDPOINT="${HF_ENDPOINT:-https://hf-mirror.com}" uv run python -m gameserver.main) &
