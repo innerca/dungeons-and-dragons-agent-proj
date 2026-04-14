@@ -5,6 +5,12 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main, develop ]
+    # 跳过纯文档改动的 CI
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'asset/**'
+      - '.github/ISSUE_TEMPLATE/**'
 
 env:
   GO_VERSION: '1.26'
