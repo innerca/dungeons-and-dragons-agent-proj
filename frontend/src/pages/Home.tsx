@@ -29,24 +29,15 @@ export function Home({ onLogout }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [model, setModel] = useState('deepseek');
   const [playerState, setPlayerState] = useState<PlayerState | null>(null);
-  const { status, lastMessage, send } = useWebSocket(WS_URL);
   const { streamingText, isStreaming, error, startStream } = useSSE();
   const chatEndRef = useRef<HTMLDivElement>(null);
   const activeIdRef = useRef<string>('');
   const hasTriggeredWelcomeRef = useRef<boolean>(false);
 
-  // Load player state
-  useEffect(() => {
-    getPlayerState().then(setPlayerState).catch((err) => {
-      console.error('Failed to load player state:', err);
-    });
-  }, []);
-
   // Handle WS response (receive request_id + sse_url)
-  useEffect(() => {
-    if (!lastMessage) return;
+  const handleWSMessage = useCallback((data: string) => {
     try {
-      const resp: WSResponse = JSON.parse(lastMessage);
+      const resp: WSResponse = JSON.parse(data);
       activeIdRef.current = resp.request_id;
       setMessages((prev) => [
         ...prev,
@@ -56,7 +47,16 @@ export function Home({ onLogout }: Props) {
     } catch (err) {
       console.error('Failed to parse WebSocket message:', err);
     }
-  }, [lastMessage, startStream, token]);
+  }, [startStream, token]);
+
+  const { status, send } = useWebSocket(WS_URL, handleWSMessage);
+
+  // Load player state
+  useEffect(() => {
+    getPlayerState().then(setPlayerState).catch((err) => {
+      console.error('Failed to load player state:', err);
+    });
+  }, []);
 
   // Update streaming message text
   useEffect(() => {

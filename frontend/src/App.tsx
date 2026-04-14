@@ -7,14 +7,14 @@ import { getPlayerState } from './services/api';
 type AppState = 'loading' | 'login' | 'create_character' | 'game';
 
 function App() {
-  const [appState, setAppState] = useState<AppState>('loading');
+  const [appState, setAppState] = useState<AppState>(() => {
+    const token = localStorage.getItem('token');
+    return token ? 'loading' : 'login';
+  });
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (!token) {
-      setAppState('login');
-      return;
-    }
+    if (!token) return;
 
     // Check if player has a character
     getPlayerState()

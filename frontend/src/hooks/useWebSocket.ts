@@ -3,13 +3,20 @@ import { WebSocketClient } from '../services/websocket';
 
 type WSStatus = 'connecting' | 'connected' | 'disconnected';
 
-export function useWebSocket(url: string) {
+export function useWebSocket(url: string, onMessage?: (data: string) => void) {
   const [status, setStatus] = useState<WSStatus>('disconnected');
   const [lastMessage, setLastMessage] = useState<string>('');
   const clientRef = useRef<WebSocketClient | null>(null);
+  const onMessageRef = useRef(onMessage);
+  useEffect(() => {
+    onMessageRef.current = onMessage;
+  });
 
   useEffect(() => {
-    const client = new WebSocketClient(url, setLastMessage, setStatus);
+    const client = new WebSocketClient(url, (data) => {
+      setLastMessage(data);
+      onMessageRef.current?.(data);
+    }, setStatus);
     clientRef.current = client;
     client.connect();
 
