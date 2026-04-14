@@ -51,7 +51,7 @@ Thumbs.db
 *.epub
 
 # Asset directory (epub and converted txt files)
-asset/sao/
+asset/sao/*.txt
 
 # ChromaDB local data
 gameserver/data/

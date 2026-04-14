@@ -26,8 +26,6 @@ https://github.com/innerca/dungeons-and-dragons-agent-proj/blob/main/output_40MB
 
 ## 快速启动
 
-**你需要有小说内容才能启动！**
-
 ```bash
 # 1. 克隆项目
 git clone https://github.com/innerca/dungeons-and-dragons-agent-proj.git
@@ -45,7 +43,9 @@ make start
 make stop
 ```
 
-> **Demo 数据**: 首次启动时会自动初始化 demo 数据（测试账号、示例文本 chunks）
+> **Demo 数据**: 首次启动时会自动初始化 demo 数据（测试账号、20 条示例文本 chunks）。Demo 模式无需额外数据文件即可运行。
+>
+> **完整小说数据（可选）**: 如需使用 SAO Progressive 小说内容进行 RAG，请自行准备 TXT 文件放入 `asset/sao/` 目录，然后运行 `make ingest-novels`
 
 ### 方式一：Docker 一键启动（推荐）
 
