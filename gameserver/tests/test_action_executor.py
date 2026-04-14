@@ -350,6 +350,221 @@ class TestActionExecutor:
         # Then: Should use existing session
         assert mock_get.called
 
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.end_combat')
+    @patch('gameserver.game.action_executor.update_combat')
+    @patch('gameserver.game.action_executor.calculate_counter_attack')
+    @patch('gameserver.game.action_executor.get_combat')
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_attack_miss(self, mock_pg, mock_get, mock_counter, mock_update, mock_end, executor):
+        """攻击未命中分支 (roll < AC)."""
+        # Given: 高 AC 怪物，确保命中失败
+        mock_monster = MagicMock()
+        mock_monster.ac = 100  # 非常高的 AC，确保 miss
+        mock_monster.hp = 50
+        mock_monster.max_hp = 50
+        mock_monster.name = "Test Monster"
+        mock_monster.monster_id = "test-123"
+        mock_monster.defense = 5
+        mock_monster.is_dead = False
+        
+        mock_session = MagicMock()
+        mock_session.monster = mock_monster
+        mock_session.round_number = 1
+        
+        mock_get.return_value = mock_session
+        
+        # Mock counter attack
+        mock_counter.return_value = MagicMock(
+            hits=False,
+            damage=0,
+            description="怪物未反击"
+        )
+        
+        mock_pg.return_value = AsyncMock()
+        
+        state = {
+            "current_hp": 100,
+            "stat_dex": 10,  # DEX mod = 0
+            "stat_luk": 10,
+            "stat_agi": 10,
+            "stat_str": 10,
+            "level": 1,
+        }
+        
+        # When: 攻击高 AC 怪物
+        result = await executor._handle_attack(
+            player_id="test-player",
+            state=state,
+            args={"target": "high-ac-monster"},
+            trace_id="test-trace"
+        )
+        
+        # Then: 应该未命中
+        assert result.success is True
+        assert "未命中" in result.description
+        assert result.details["hit"] is False
+        assert result.details["total_damage"] == 0
+        # 验证没有调用 end_combat（怪物未死）
+        mock_end.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.random')
+    @patch('gameserver.game.action_executor.end_combat')
+    @patch('gameserver.game.action_executor.update_combat')
+    @patch('gameserver.game.action_executor.calculate_counter_attack')
+    @patch('gameserver.game.action_executor.quest_service')
+    @patch('gameserver.game.action_executor.state_service')
+    @patch('gameserver.game.action_executor.get_combat')
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_attack_critical_hit(self, mock_pg, mock_get, mock_state, mock_quest, 
+                                       mock_counter, mock_update, mock_end, mock_random, executor):
+        """暴击分支 (natural 20 或暴击判定成功)."""
+        # Given: Mock 骰子和暴击
+        mock_random.randint.return_value = 20  # natural 20
+        mock_random.random.return_value = 0.0  # 确保暴击成功 (0.0 < crit_threshold)
+        mock_random.uniform.return_value = 1.0  # 伤害方差
+        mock_random.randint.side_effect = [20]  # 只调用一次 d20
+        
+        mock_monster = MagicMock()
+        mock_monster.ac = 10  # 低 AC，确保命中
+        mock_monster.hp = 100
+        mock_monster.max_hp = 100
+        mock_monster.name = "Test Monster"
+        mock_monster.monster_id = "test-123"
+        mock_monster.defense = 0
+        mock_monster.is_dead = False
+        
+        mock_session = MagicMock()
+        mock_session.monster = mock_monster
+        mock_session.round_number = 1
+        
+        mock_get.return_value = mock_session
+        
+        # Mock PG queries
+        mock_pool = AsyncMock()
+        mock_pool.fetchrow.return_value = None  # 没有装备
+        mock_pg.return_value = mock_pool
+        
+        # Mock state save
+        mock_state.save_player_state = AsyncMock()
+        
+        # Mock counter attack
+        mock_counter.return_value = MagicMock(
+            hits=True,
+            damage=10,
+            description="怪物反击"
+        )
+        
+        # Mock quest service
+        mock_quest.update_quest_progress = AsyncMock(return_value=[])
+        
+        state = {
+            "current_hp": 100,
+            "stat_dex": 14,  # DEX mod = +2
+            "stat_luk": 20,  # 高 LUK 增加暴击率
+            "stat_agi": 10,
+            "stat_str": 10,
+            "level": 1,
+        }
+        
+        # When: 攻击（必定暴击）
+        result = await executor._handle_attack(
+            player_id="test-player",
+            state=state,
+            args={"target": "test-monster"},
+            trace_id="test-trace"
+        )
+        
+        # Then: 应该暴击
+        assert result.success is True
+        assert "会心一击" in result.description
+        assert result.details["hit"] is True
+        assert result.details["total_damage"] > 0
+        # 检查暴击细节
+        assert any(h["critical"] for h in result.details["hit_details"])
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.random')
+    @patch('gameserver.game.action_executor.end_combat')
+    @patch('gameserver.game.action_executor.update_combat')
+    @patch('gameserver.game.action_executor.calculate_counter_attack')
+    @patch('gameserver.game.action_executor.quest_service')
+    @patch('gameserver.game.action_executor.state_service')
+    @patch('gameserver.game.action_executor.get_combat')
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_attack_monster_defeated(self, mock_pg, mock_get, mock_state, mock_quest, 
+                                          mock_counter, mock_update, mock_end, mock_random, executor):
+        """怪物死亡分支 (HP 归零)."""
+        # Given: Mock 骰子确保命中和高伤害
+        def mock_randint(min_val, max_val):
+            return 20  # 总是 20
+        
+        mock_random.randint = mock_randint
+        mock_random.random.return_value = 0.0  # 暴击
+        mock_random.uniform.return_value = 2.0  # 高伤害确保击杀
+        
+        mock_monster = MagicMock()
+        mock_monster.ac = 10
+        mock_monster.hp = 10  # 会被击杀
+        mock_monster.max_hp = 100
+        mock_monster.name = "Test Monster"
+        mock_monster.monster_id = "test-123"
+        mock_monster.defense = 0
+        # is_dead 是属性，基于 hp <= 0
+        type(mock_monster).is_dead = property(lambda self: self.hp <= 0)
+        
+        mock_session = MagicMock()
+        mock_session.monster = mock_monster
+        mock_session.round_number = 1
+        
+        mock_get.return_value = mock_session
+        
+        # Mock PG - 怪物定义
+        mock_pool = AsyncMock()
+        mock_pool.fetchrow.side_effect = [
+            None,  # 装备查询
+            {"exp_reward": 50, "col_reward_min": 10, "col_reward_max": 20},  # 怪物奖励
+        ]
+        mock_pg.return_value = mock_pool
+        
+        # Mock state service
+        mock_state.save_player_state = AsyncMock()
+        # 需要 mock _check_level_up 函数
+        with patch('gameserver.game.action_executor._check_level_up', new_callable=AsyncMock, return_value=None):
+            # Mock quest service
+            mock_quest.update_quest_progress = AsyncMock(return_value=["任务进度更新: 击杀 1/3 怪物"])
+            
+            state = {
+                "current_hp": 100,
+                "stat_dex": 14,
+                "stat_luk": 10,
+                "stat_agi": 10,
+                "stat_str": 10,
+                "level": 1,
+                "experience": 0,
+                "col": 100,
+                "character_id": None,  # 明确设置为 None
+            }
+            
+            # When: 击杀怪物
+            result = await executor._handle_attack(
+                player_id="test-player",
+                state=state,
+                args={"target": "test-monster"},
+                trace_id="test-trace"
+            )
+            
+            # Then: 怪物应该被击败
+            assert result.success is True
+            assert "被击败了" in result.description
+            assert "经验值" in result.description
+            assert "珂尔" in result.description
+            # 验证调用了 end_combat
+            mock_end.assert_called_once()
+            # 验证调用了 quest progress
+            mock_quest.update_quest_progress.assert_called_once()
+
 
 class TestActionExecutorDefend:
     """Tests for _handle_defend."""
@@ -572,6 +787,96 @@ class TestHandleUseItem:
         assert result.success is False
         assert "未创建角色" in result.error
 
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_use_antidote(self, mock_pg, executor):
+        """使用解毒剂分支."""
+        # Given: Antidote item
+        mock_pool = AsyncMock()
+        mock_pg.return_value = mock_pool
+        mock_pool.fetchrow = AsyncMock(return_value={
+            "name": "解毒剂",
+            "item_type": "consumable",
+        })
+        mock_pool.execute = AsyncMock()
+        
+        state = {
+            "character_id": "550e8400-e29b-41d4-a716-446655440000",
+            "current_hp": 100,
+        }
+        
+        # When: Use antidote
+        result = await executor._handle_use_item(
+            player_id="test-player",
+            state=state,
+            args={"item_id": "antidote"},
+            trace_id="test-trace"
+        )
+        
+        # Then: Should cure poison
+        assert result.success is True
+        assert "解毒" in result.description or "中毒" in result.description
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_use_teleport_crystal(self, mock_pg, executor):
+        """使用传送水晶分支."""
+        # Given: Teleport crystal
+        mock_pool = AsyncMock()
+        mock_pg.return_value = mock_pool
+        mock_pool.fetchrow = AsyncMock(return_value={
+            "name": "转移水晶",
+            "item_type": "consumable",
+        })
+        mock_pool.execute = AsyncMock()
+        
+        state = {
+            "character_id": "550e8400-e29b-41d4-a716-446655440000",
+            "current_hp": 100,
+        }
+        
+        # When: Use teleport crystal
+        result = await executor._handle_use_item(
+            player_id="test-player",
+            state=state,
+            args={"item_id": "teleport_crystal"},
+            trace_id="test-trace"
+        )
+        
+        # Then: Should prepare teleport
+        assert result.success is True
+        assert "传送" in result.description or "转移" in result.description
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_use_unknown_item(self, mock_pg, executor):
+        """使用未知物品分支 (generic item)."""
+        # Given: Unknown item
+        mock_pool = AsyncMock()
+        mock_pg.return_value = mock_pool
+        mock_pool.fetchrow = AsyncMock(return_value={
+            "name": "神秘物品",
+            "item_type": "consumable",
+        })
+        mock_pool.execute = AsyncMock()
+        
+        state = {
+            "character_id": "550e8400-e29b-41d4-a716-446655440000",
+            "current_hp": 100,
+        }
+        
+        # When: Use unknown item
+        result = await executor._handle_use_item(
+            player_id="test-player",
+            state=state,
+            args={"item_id": "mystery_item"},
+            trace_id="test-trace"
+        )
+        
+        # Then: Should use generic message
+        assert result.success is True
+        assert "使用了神秘物品" in result.description
+
 
 class TestHandleFlee:
     """Tests for flee handler."""
@@ -620,6 +925,41 @@ class TestHandleFlee:
         # Then: Flee always returns success (dice roll determines escape)
         assert result.success is True
         assert "逃跑检定" in result.description
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor._roll')
+    @patch('gameserver.game.action_executor.get_combat')
+    async def test_flee_failure(self, mock_get, mock_roll, executor):
+        """逃跑失败分支 (roll < DC)."""
+        # Given: 低骰子点数，确保失败
+        mock_get.return_value = MagicMock(
+            monster=MagicMock(ac=12, hp=30, atk=5, defense=3)
+        )
+        mock_roll.return_value = {
+            "rolls": [1],  # 骰出 1
+            "modifier": 0,
+            "total": 1,  # 总点数 1
+            "natural_max": False,
+            "natural_1": True,
+        }
+        
+        state = {
+            "current_hp": 50,
+            "stat_agi": 10,  # AGI mod = 0
+        }
+        
+        # When: Flee with low roll
+        result = await executor._handle_flee(
+            player_id="test-player",
+            state=state,
+            args={},
+            trace_id="test-trace"
+        )
+        
+        # Then: Should fail to escape
+        assert result.success is True  # action 本身成功
+        assert "逃跑失败" in result.description
+        assert result.details["escaped"] is False
 
 
 class TestHandleMoveTo:
@@ -678,6 +1018,126 @@ class TestHandleMoveTo:
         
         # Then: Should succeed
         assert result.success is True
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.quest_service')
+    @patch('gameserver.game.action_executor.random')
+    @patch('gameserver.game.action_executor.state_service')
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_move_to_dangerous_area_with_encounter(self, mock_pg, mock_state, mock_random, mock_quest, executor):
+        """移动到危险区域并触发遭遇战."""
+        # Given: 危险区域，100% 遭遇
+        mock_pg.return_value = AsyncMock()
+        mock_state.save_player_state = AsyncMock()
+        mock_random.random.return_value = 0.0  # 总是触发遭遇
+        mock_random.randint.return_value = 1  # 1 只怪物
+        
+        # Mock 怪物查询
+        mock_pool = AsyncMock()
+        mock_pool.fetch = AsyncMock(return_value=[{
+            "name": "哥布林",
+            "level_min": 1,
+            "level_max": 3,
+            "monster_type": "humanoid",
+        }])
+        mock_pg.return_value.fetch = mock_pool.fetch
+        
+        # Mock quest service
+        mock_quest.check_quest_triggers = AsyncMock(return_value=[])
+        mock_quest.update_quest_progress = AsyncMock(return_value=[])
+        
+        state = {
+            "current_area": "starting_city",
+            "current_location": "town_square",
+            "current_floor": "1",
+        }
+        
+        # When: 移动到危险区域
+        result = await executor._handle_move_to(
+            player_id="test-player",
+            state=state,
+            args={"area": "dark_forest", "location": "forest_deep"},
+            trace_id="test-trace"
+        )
+        
+        # Then: 应该触发遭遇战
+        assert result.success is True
+        assert "dark_forest" in result.description
+        assert "forest_deep" in result.description
+        assert "野外遭遇" in result.description
+        assert result.details["encounter"] is not None
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.quest_service')
+    @patch('gameserver.game.action_executor.random')
+    @patch('gameserver.game.action_executor.state_service')
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_move_to_safe_area_no_encounter(self, mock_pg, mock_state, mock_random, mock_quest, executor):
+        """移动到安全区域，不触发遭遇战."""
+        # Given: 安全区域
+        mock_pg.return_value = AsyncMock()
+        mock_state.save_player_state = AsyncMock()
+        mock_random.random.return_value = 0.0  # 即使是 0 也不触发（安全区域）
+        
+        # Mock quest service
+        mock_quest.check_quest_triggers = AsyncMock(return_value=["新任务：探索城镇"])
+        mock_quest.update_quest_progress = AsyncMock(return_value=["任务进度：到达城镇"])
+        
+        state = {
+            "current_area": "forest",
+            "current_location": "forest_entrance",
+            "current_floor": "1",
+        }
+        
+        # When: 移动到安全区域（town/city）
+        result = await executor._handle_move_to(
+            player_id="test-player",
+            state=state,
+            args={"area": "城镇", "location": "广场"},
+            trace_id="test-trace"
+        )
+        
+        # Then: 不应该有遭遇战，但应该有任务触发
+        assert result.success is True
+        assert "城镇" in result.description
+        assert result.details["encounter"] is None
+        assert "新任务可接取" in result.description
+        assert "任务进度" in result.description
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.quest_service')
+    @patch('gameserver.game.action_executor.state_service')
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_move_to_without_location(self, mock_pg, mock_state, mock_quest, executor):
+        """移动时不提供 location，使用 area 作为 location."""
+        # Given: 只有 area
+        mock_pg.return_value = AsyncMock()
+        mock_state.save_player_state = AsyncMock()
+        
+        # Mock quest service
+        mock_quest.check_quest_triggers = AsyncMock(return_value=[])
+        mock_quest.update_quest_progress = AsyncMock(return_value=[])
+        
+        state = {
+            "current_area": "starting_city",
+            "current_floor": "1",
+        }
+        
+        # When: 移动只有 area
+        result = await executor._handle_move_to(
+            player_id="test-player",
+            state=state,
+            args={"area": "forest"},
+            trace_id="test-trace"
+        )
+        
+        # Then: location 应该等于 area
+        assert result.success is True
+        assert "forest" in result.description
+        # 验证 state_changes
+        assert mock_state.save_player_state.called
+        call_args = mock_state.save_player_state.call_args[0][1]
+        assert call_args["current_location"] == "forest"
 
 
 class TestHandleTalkToNPC:
