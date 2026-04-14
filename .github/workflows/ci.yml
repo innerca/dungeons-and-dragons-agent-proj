@@ -30,8 +30,20 @@ jobs:
         cache: true
         cache-dependency-path: gateway/go.sum
     
+    - name: Install protoc
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y protobuf-compiler
+        protoc --version
+    
     - name: Download dependencies
       run: go mod download
+    
+    - name: Generate gRPC code
+      run: |
+        go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+        go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+        cd .. && make proto-go
     
     - name: Run go vet
       run: go vet ./...

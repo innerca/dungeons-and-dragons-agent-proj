@@ -1,0 +1,10 @@
+# CI environment configuration - CPU-only PyTorch
+# This file is used by GitHub Actions to avoid downloading CUDA packages (3GB+)
+
+[[index]]
+name = "pypi"
+url = "https://pypi.org/simple"
+
+[[index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"

@@ -7,7 +7,7 @@ GOPATH_BIN := $(shell go env GOPATH)/bin
 export GO111MODULE=on
 export PATH := $(GOPATH_BIN):$(PATH)
 
-.PHONY: proto-gen proto-go proto-py clean dev dev-down dev-logs help ingest-novels verify-vectordb start stop db-init
+.PHONY: proto-gen proto-go proto-py clean dev dev-down dev-logs help ingest-novels verify-vectordb start stop db-init test test-gateway test-gameserver test-frontend
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
@@ -79,6 +79,31 @@ dev-gameserver: ## Start GameServer only (local)
 
 dev-frontend: ## Start Frontend only (local)
 	cd frontend && npm run dev
+
+# --- Testing ---
+
+test: test-gateway test-gameserver test-frontend ## Run all tests
+
+install-gameserver: ## Install GameServer dependencies
+	@echo "Installing GameServer dependencies..."
+	cd gameserver && uv sync --frozen
+	@echo "Installation complete."
+
+test-gateway: ## Run Gateway (Go) tests
+	@echo "Running Gateway tests..."
+	cd gateway && go test -v -race -coverprofile=coverage.out ./...
+	@echo "Gateway tests completed."
+
+test-gameserver: ## Run GameServer (Python) tests
+	@echo "Running GameServer tests..."
+	cd gameserver && uv run pytest tests/ -v --tb=short
+	@echo "GameServer tests completed."
+
+test-frontend: ## Run Frontend type check and build
+	@echo "Running Frontend checks..."
+	cd frontend && npx tsc --noEmit
+	cd frontend && npm run build
+	@echo "Frontend checks completed."
 
 # --- Database ---
 

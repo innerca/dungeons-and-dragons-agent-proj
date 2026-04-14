@@ -16,6 +16,7 @@ build/
 # Go
 gateway/gen/
 gateway/gateway
+gateway/coverage.out
 *.exe
 *.exe~
 *.dll

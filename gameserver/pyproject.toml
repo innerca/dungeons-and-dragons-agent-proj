@@ -10,13 +10,11 @@ dependencies = [
     "bcrypt>=4.0.0",
     "chromadb>=1.0.0",
     "grpcio>=1.80.0",
-    "grpcio-tools>=1.80.0",
-    "openai>=2.30.0",
+    "openai>=2.30.0",  # LLM + Embedding API
     "pydantic-settings>=2.13.1",
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0.3",
     "redis[hiredis]>=5.0.0",
-    "sentence-transformers>=3.0.0",
 ]
 
 [project.scripts]
@@ -28,6 +26,7 @@ dev = [
     "pytest-asyncio>=0.25.0",
     "pytest-mock>=3.14.0",
     "fakeredis>=2.26.0",
+    "grpcio-tools>=1.80.0",  # Only needed for proto generation
 ]
 
 [tool.pytest.ini_options]

@@ -57,7 +57,8 @@ async def serve() -> None:
     # Initialize ChromaDB (non-blocking, RAG is optional)
     try:
         chromadb_path = os.environ.get("CHROMADB_PATH")
-        init_chromadb(chromadb_path)
+        openai_api_key = os.environ.get("OPENAI_API_KEY")
+        init_chromadb(chromadb_path, api_key=openai_api_key)
     except Exception as e:
         logger.warning("ChromaDB init failed (RAG disabled): %s", e)
 

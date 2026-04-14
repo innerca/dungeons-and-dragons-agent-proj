@@ -1,2 +1,9 @@
+# PyPI mirror (Tsinghua for China)
 [[index]]
 url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+
+# CPU-only PyTorch index (saves 3GB+ CUDA downloads)
+# Uncomment the following lines for CI or CPU-only environments:
+# [[index]]
+# url = "https://download.pytorch.org/whl/cpu"
+# explicit = true
