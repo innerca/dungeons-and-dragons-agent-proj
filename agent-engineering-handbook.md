@@ -6,7 +6,7 @@
 - 这是一份**设计决策的汇编**，而非代码实现教程。
 - 每一个量化阈值（Token 预算、超时参数、熔断阈值）背后，都对应一个具体的工程权衡。
 - 每一个"降级策略"和"验证方法"章节，都源于我对生产环境不确定性的推演。
-- 📖 如需查看完整版（含深度思考题与参考答案），请参阅：[Agent 工程手册 final_version.md](./docs/engineering/Agent工程手册final_version.md)
+- 📖 如需查看完整版（含深度思考题与参考答案），请参阅：[Agent 工程手册 final_version.md](./engineering/Agent工程手册final_version.md)
 
 **关于作者贡献**：
 本手册由我与 AI 协作完成。我的角色是：
