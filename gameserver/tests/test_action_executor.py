@@ -2,9 +2,11 @@
 
 import json
 import pytest
+from unittest.mock import AsyncMock, patch, MagicMock
 
 from gameserver.game.action_executor import (
     ActionResult,
+    ActionExecutor,
     _roll,
     _stat_mod,
     _calc_exp_to_next,
@@ -217,3 +219,132 @@ class TestActionResult:
 
         assert parsed["success"] is True
         assert parsed["description"] == "Defense stance activated"
+
+
+class TestActionExecutor:
+    """Tests for ActionExecutor class."""
+
+    @pytest.fixture
+    def executor(self):
+        """Create ActionExecutor instance."""
+        return ActionExecutor()
+
+    @pytest.mark.asyncio
+    async def test_execute_unknown_tool(self, executor):
+        """未知工具返回错误."""
+        # Given: An unknown tool name
+        # When: Executing the tool
+        result = await executor.execute(
+            player_id="test-player",
+            state={"current_hp": 100},
+            tool_name="unknown_tool",
+            tool_args={},
+            trace_id="test-trace"
+        )
+        
+        # Then: Should return error
+        assert result.success is False
+        assert "Unknown tool" in result.error
+        assert result.action_type == "unknown_tool"
+
+    @pytest.mark.asyncio
+    async def test_execute_handler_exception(self, executor):
+        """处理器异常被捕获."""
+        # Given: A handler that raises exception
+        async def failing_handler(*args, **kwargs):
+            raise ValueError("Test error")
+        
+        executor._handle_test = failing_handler
+        
+        # When: Executing the tool
+        result = await executor.execute(
+            player_id="test-player",
+            state={},
+            tool_name="test",
+            tool_args={},
+            trace_id="test-trace"
+        )
+        
+        # Then: Should return error
+        assert result.success is False
+        assert "执行错误" in result.error
+
+    @pytest.mark.asyncio
+    async def test_handle_attack_zero_hp(self, executor):
+        """HP 为 0 时无法攻击."""
+        # Given: Player with 0 HP
+        state = {"current_hp": 0}
+        
+        # When: Trying to attack
+        result = await executor._handle_attack(
+            player_id="test-player",
+            state=state,
+            args={"target": "goblin"},
+            trace_id="test-trace"
+        )
+        
+        # Then: Should fail
+        assert result.success is False
+        assert "HP 为 0" in result.error
+
+    @pytest.mark.asyncio
+    @pytest.mark.skip(reason="需要完整 mock 战斗流程")
+    @patch('gameserver.game.action_executor.get_combat')
+    @patch('gameserver.game.action_executor.start_combat')
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_handle_attack_start_combat(self, mock_pg, mock_start, mock_get, executor):
+        """攻击时创建战斗会话."""
+        # Given: No active combat session
+        mock_get.return_value = None
+        mock_start.return_value = MagicMock(
+            monster=MagicMock(ac=12, hp=30, atk=5, defense=3)
+        )
+        mock_pg.return_value = AsyncMock()
+        
+        state = {
+            "current_hp": 100,
+            "stat_dex": 14,
+            "stat_luk": 10,
+            "level": 1,
+        }
+        
+        # When: Attacking
+        result = await executor._handle_attack(
+            player_id="test-player",
+            state=state,
+            args={"target": "goblin"},
+            trace_id="test-trace"
+        )
+        
+        # Then: Should create combat session
+        mock_start.assert_called_once()
+
+    @pytest.mark.asyncio
+    @pytest.mark.skip(reason="需要完整 mock 战斗流程")
+    @patch('gameserver.game.action_executor.get_combat')
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_handle_attack_existing_combat(self, mock_pg, mock_get, executor):
+        """攻击时使用现有战斗会话."""
+        # Given: Active combat session
+        mock_get.return_value = MagicMock(
+            monster=MagicMock(ac=15, hp=50, atk=8, defense=5)
+        )
+        mock_pg.return_value = AsyncMock()
+        
+        state = {
+            "current_hp": 100,
+            "stat_dex": 12,
+            "stat_luk": 10,
+            "level": 2,
+        }
+        
+        # When: Attacking
+        result = await executor._handle_attack(
+            player_id="test-player",
+            state=state,
+            args={"target": "existing-monster"},
+            trace_id="test-trace"
+        )
+        
+        # Then: Should use existing session
+        assert mock_get.called
