@@ -37,7 +37,9 @@ export function Home({ onLogout }: Props) {
 
   // Load player state
   useEffect(() => {
-    getPlayerState().then(setPlayerState).catch(() => {});
+    getPlayerState().then(setPlayerState).catch((err) => {
+      console.error('Failed to load player state:', err);
+    });
   }, []);
 
   // Handle WS response (receive request_id + sse_url)
@@ -51,8 +53,8 @@ export function Home({ onLogout }: Props) {
         { id: resp.request_id, text: '', isUser: false, isStreaming: true, error: '' },
       ]);
       startStream(API_BASE + resp.sse_url, token);
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error('Failed to parse WebSocket message:', err);
     }
   }, [lastMessage, startStream, token]);
 
@@ -67,7 +69,9 @@ export function Home({ onLogout }: Props) {
     );
     // Refresh state after response completes
     if (!isStreaming && streamingText) {
-      getPlayerState().then(setPlayerState).catch(() => {});
+      getPlayerState().then(setPlayerState).catch((err) => {
+        console.error('Failed to refresh player state:', err);
+      });
     }
   }, [streamingText, isStreaming, error]);
 
@@ -92,8 +96,12 @@ export function Home({ onLogout }: Props) {
   );
 
   // Auto-trigger welcome message for new players
+  const shouldTriggerWelcome = useCallback(() => {
+    return messages.length === 0 && playerState?.character_name && !hasTriggeredWelcomeRef.current;
+  }, [messages.length, playerState?.character_name]);
+
   useEffect(() => {
-    if (messages.length === 0 && playerState?.character_name && !hasTriggeredWelcomeRef.current) {
+    if (shouldTriggerWelcome()) {
       hasTriggeredWelcomeRef.current = true;
       // Delay a bit for page render to complete
       const timer = setTimeout(() => {
@@ -101,7 +109,7 @@ export function Home({ onLogout }: Props) {
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [messages.length, playerState?.character_name, handleSend]);
+  }, [shouldTriggerWelcome, handleSend]);
 
   return (
     <div className="app">

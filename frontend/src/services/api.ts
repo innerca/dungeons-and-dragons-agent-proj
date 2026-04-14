@@ -3,23 +3,29 @@ import type { AuthResponse, PlayerState } from '../types';
 const GATEWAY_HOST = import.meta.env.VITE_GATEWAY_HOST || '';
 export const API_BASE = GATEWAY_HOST ? `http://${GATEWAY_HOST}` : '';
 
-async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function apiFetch<T>(path: string, requestOptions: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('token');
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string> || {}),
+    ...(requestOptions.headers as Record<string, string> || {}),
   };
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
   const url = `${API_BASE}${path}`;
-  console.log(`[API] ${options.method || 'GET'} ${url}`);
-  
-  const resp = await fetch(url, { ...options, headers });
-  const data = await resp.json();
+  console.log(`[API] ${requestOptions.method || 'GET'} ${url}`);
 
-  if (!resp.ok && !data.error) {
+  const resp = await fetch(url, { ...requestOptions, headers });
+
+  let data: unknown;
+  try {
+    data = await resp.json();
+  } catch {
+    throw new Error(`HTTP ${resp.status}: Invalid JSON response`);
+  }
+
+  if (!resp.ok && !(data as { error?: string }).error) {
     throw new Error(`HTTP ${resp.status}`);
   }
   return data as T;
