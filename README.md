@@ -22,6 +22,8 @@ https://github.com/innerca/dungeons-and-dragons-agent-proj/blob/main/demo-gamepl
 
 **工程实践** → [Agent 工程手册](agent-engineering-handbook.md) | [完整版手册](engineering/Agent工程手册final_version.md) | [AI质量检查提示词](engineering/claude_quality_check_prompt.md) | [Claude模板](engineering/claude_template.md) | [工程题集](engineering/题集.md)
 
+**代码质量审查** → [Java专属审查](engineering/quality_check_java.md) | [Python专属审查](engineering/quality_check_python.md) | [Go专属审查](engineering/quality_check_go.md) | [TypeScript专属审查](engineering/quality_check_typescript.md) | [C++专属审查](engineering/quality_check_cpp.md) | [Rust专属审查](engineering/quality_check_rust.md)
+
 **架构设计** → [轻量级用户画像方案](engineering/端侧轻量级用户画像系统落地方案.md) | [简洁可拓展方案](engineering/端侧用户画像系统：简洁可拓展落地方案.md)
 
 **关于作者** → [关于本项目与我的工作模式](#关于本项目与我的工作模式)
