@@ -60,35 +60,27 @@ class TestRoll:
             assert 1 <= roll <= 6
         assert result["total"] == sum(result["rolls"])
 
-    def test_roll_natural_max(self):
+    @patch('gameserver.game.action_executor.random.randint', return_value=20)
+    def test_roll_natural_max(self, mock_randint):
         """natural_max 为 True 当掷出最大值."""
-        # TODO: This is a probabilistic test - may occasionally fail due to randomness
-        # Given: A d20 dice roll
-        # When: Rolling 100 times to find a natural 20
-        # Then: natural_max should be True when 20 is rolled
-        found_max = False
-        for _ in range(100):
-            result = _roll(sides=20, count=1, modifier=0)
-            if result["rolls"][0] == 20:
-                found_max = True
-                assert result["natural_max"] is True
-                break
-        # Just verify the logic works (we should hit 20 eventually)
-        # This test is probabilistic but very likely to pass
+        # Given: Mock randint to always return 20 (max value)
+        # When: Rolling a d20
+        result = _roll(sides=20, count=1, modifier=0)
+        
+        # Then: natural_max should be True
+        assert result["natural_max"] is True
+        assert result["rolls"][0] == 20
 
-    def test_roll_natural_1(self):
+    @patch('gameserver.game.action_executor.random.randint', return_value=1)
+    def test_roll_natural_1(self, mock_randint):
         """natural_1 为 True 当掷出 1."""
-        # TODO: This is a probabilistic test - may occasionally fail due to randomness
-        # Given: A d20 dice roll
-        # When: Rolling 100 times to find a natural 1
-        # Then: natural_1 should be True when 1 is rolled
-        found_1 = False
-        for _ in range(100):
-            result = _roll(sides=20, count=1, modifier=0)
-            if result["rolls"][0] == 1:
-                found_1 = True
-                assert result["natural_1"] is True
-                break
+        # Given: Mock randint to always return 1 (min value)
+        # When: Rolling a d20
+        result = _roll(sides=20, count=1, modifier=0)
+        
+        # Then: natural_1 should be True
+        assert result["natural_1"] is True
+        assert result["rolls"][0] == 1
 
 
 class TestStatMod:
@@ -287,68 +279,6 @@ class TestActionExecutor:
         # Then: Should fail
         assert result.success is False
         assert "HP 为 0" in result.error
-
-    @pytest.mark.asyncio
-    @pytest.mark.skip(reason="需要完整 mock 战斗流程")
-    @patch('gameserver.game.action_executor.get_combat')
-    @patch('gameserver.game.action_executor.start_combat')
-    @patch('gameserver.game.action_executor.get_pg')
-    async def test_handle_attack_start_combat(self, mock_pg, mock_start, mock_get, executor):
-        """攻击时创建战斗会话."""
-        # Given: No active combat session
-        mock_get.return_value = None
-        mock_start.return_value = MagicMock(
-            monster=MagicMock(ac=12, hp=30, atk=5, defense=3)
-        )
-        mock_pg.return_value = AsyncMock()
-        
-        state = {
-            "current_hp": 100,
-            "stat_dex": 14,
-            "stat_luk": 10,
-            "level": 1,
-        }
-        
-        # When: Attacking
-        result = await executor._handle_attack(
-            player_id="test-player",
-            state=state,
-            args={"target": "goblin"},
-            trace_id="test-trace"
-        )
-        
-        # Then: Should create combat session
-        mock_start.assert_called_once()
-
-    @pytest.mark.asyncio
-    @pytest.mark.skip(reason="需要完整 mock 战斗流程")
-    @patch('gameserver.game.action_executor.get_combat')
-    @patch('gameserver.game.action_executor.get_pg')
-    async def test_handle_attack_existing_combat(self, mock_pg, mock_get, executor):
-        """攻击时使用现有战斗会话."""
-        # Given: Active combat session
-        mock_get.return_value = MagicMock(
-            monster=MagicMock(ac=15, hp=50, atk=8, defense=5)
-        )
-        mock_pg.return_value = AsyncMock()
-        
-        state = {
-            "current_hp": 100,
-            "stat_dex": 12,
-            "stat_luk": 10,
-            "level": 2,
-        }
-        
-        # When: Attacking
-        result = await executor._handle_attack(
-            player_id="test-player",
-            state=state,
-            args={"target": "existing-monster"},
-            trace_id="test-trace"
-        )
-        
-        # Then: Should use existing session
-        assert mock_get.called
 
     @pytest.mark.asyncio
     @patch('gameserver.game.action_executor.end_combat')
@@ -654,7 +584,7 @@ class TestActionExecutorLevelUp:
         # Should not level up
         assert result == ""
         # level key won't be in state_changes if no level up
-        assert "level" not in state_changes or state_changes.get("level") == 1
+        assert "level" not in state_changes
 
 
 class TestActionExecutorDamageCalc:
@@ -739,7 +669,7 @@ class TestHandleUseItem:
         
         # Then: Should heal HP
         assert result.success is True
-        assert "HP" in result.description or "回复" in result.description
+        assert "回复" in result.description  # 中文描述包含"回复"
 
     @pytest.mark.asyncio
     @patch('gameserver.game.action_executor.get_pg')
@@ -815,7 +745,7 @@ class TestHandleUseItem:
         
         # Then: Should cure poison
         assert result.success is True
-        assert "解毒" in result.description or "中毒" in result.description
+        assert "解除中毒" in result.description or "解除麻痹" in result.description
 
     @pytest.mark.asyncio
     @patch('gameserver.game.action_executor.get_pg')
@@ -845,7 +775,7 @@ class TestHandleUseItem:
         
         # Then: Should prepare teleport
         assert result.success is True
-        assert "传送" in result.description or "转移" in result.description
+        assert "传送准备就绪" in result.description
 
     @pytest.mark.asyncio
     @patch('gameserver.game.action_executor.get_pg')
