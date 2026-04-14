@@ -6,9 +6,12 @@ import pytest
 from gameserver.game.combat_state import (
     MonsterState,
     CombatSession,
+    CounterAttackResult,
     start_combat,
     end_combat,
     get_combat,
+    update_combat,
+    calculate_counter_attack,
 )
 
 
@@ -215,3 +218,159 @@ class TestCombatOperations:
         """获取不存在的战斗会话返回 None."""
         session = await get_combat(player_id)
         assert session is None
+
+
+class TestCounterAttack:
+    """Tests for counter-attack logic."""
+
+    def test_counter_attack_miss(self):
+        """反击未命中."""
+        # Given: Monster with low ATK vs high player AC
+        monster = MonsterState(
+            monster_id="test_001",
+            name="Goblin",
+            hp=30,
+            max_hp=30,
+            atk=5,
+            defense=2,
+            ac=10,
+        )
+        player_ac = 20  # Very high AC
+        
+        # When: Counter attack (mock roll to miss)
+        import random
+        original_randint = random.randint
+        random.randint = lambda a, b: 5  # Roll 5, will miss AC 20
+        
+        try:
+            result = calculate_counter_attack(monster, player_ac)
+            
+            # Then: Should miss
+            assert result.hits is False
+            assert result.damage == 0
+            assert "闪避" in result.description
+        finally:
+            random.randint = original_randint
+
+    def test_counter_attack_hit(self):
+        """反击命中."""
+        # Given: Monster vs low player AC
+        monster = MonsterState(
+            monster_id="test_001",
+            name="Orc",
+            hp=50,
+            max_hp=50,
+            atk=15,
+            defense=5,
+            ac=12,
+        )
+        player_ac = 10  # Low AC
+        
+        # When: Counter attack (mock roll to hit)
+        import random
+        original_randint = random.randint
+        original_uniform = random.uniform
+        random.randint = lambda a, b: 15  # Roll 15, will hit AC 10
+        random.uniform = lambda a, b: 1.0  # No variance
+        
+        try:
+            result = calculate_counter_attack(monster, player_ac, player_defense=0)
+            
+            # Then: Should hit
+            assert result.hits is True
+            assert result.damage > 0
+            assert "命中" in result.description
+        finally:
+            random.randint = original_randint
+            random.uniform = original_uniform
+
+    def test_counter_attack_critical(self):
+        """反击暴击（Natural 20）."""
+        # Given: Any monster
+        monster = MonsterState(
+            monster_id="test_001",
+            name="Dragon",
+            hp=100,
+            max_hp=100,
+            atk=20,
+            defense=10,
+            ac=15,
+        )
+        player_ac = 10
+        
+        # When: Natural 20 roll
+        import random
+        original_randint = random.randint
+        original_uniform = random.uniform
+        random.randint = lambda a, b: 20  # Natural 20
+        random.uniform = lambda a, b: 1.0
+        
+        try:
+            result = calculate_counter_attack(monster, player_ac)
+            
+            # Then: Should be critical hit
+            assert result.hits is True
+            assert result.attack_roll == 20
+            assert "会心一击" in result.description
+        finally:
+            random.randint = original_randint
+            random.uniform = original_uniform
+
+    def test_counter_attack_with_defense(self):
+        """反击时玩家防御减伤."""
+        monster = MonsterState(
+            monster_id="test_001",
+            name="Wolf",
+            hp=40,
+            max_hp=40,
+            atk=10,
+            defense=3,
+            ac=11,
+        )
+        player_ac = 10
+        player_defense = 20  # High defense
+        
+        import random
+        original_randint = random.randint
+        original_uniform = random.uniform
+        random.randint = lambda a, b: 15  # Hit
+        random.uniform = lambda a, b: 1.0
+        
+        try:
+            result_no_def = calculate_counter_attack(monster, player_ac, player_defense=0)
+            result_with_def = calculate_counter_attack(monster, player_ac, player_defense=player_defense)
+            
+            # Then: Defense should reduce damage
+            assert result_with_def.damage < result_no_def.damage
+        finally:
+            random.randint = original_randint
+            random.uniform = original_uniform
+
+    def test_counter_attack_minimum_damage(self):
+        """反击伤害至少为 1."""
+        monster = MonsterState(
+            monster_id="test_001",
+            name="Slime",
+            hp=10,
+            max_hp=10,
+            atk=1,  # Very low ATK
+            defense=0,
+            ac=8,
+        )
+        player_ac = 1
+        player_defense = 100  # Very high defense
+        
+        import random
+        original_randint = random.randint
+        original_uniform = random.uniform
+        random.randint = lambda a, b: 10  # Hit
+        random.uniform = lambda a, b: 0.9  # Minimum variance
+        
+        try:
+            result = calculate_counter_attack(monster, player_ac, player_defense=player_defense)
+            
+            # Then: Damage should be at least 1
+            assert result.damage >= 1
+        finally:
+            random.randint = original_randint
+            random.uniform = original_uniform
