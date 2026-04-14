@@ -6,7 +6,7 @@ AI 驱动的 DND 游戏项目，基于微服务架构构建。以刀剑神域 Pr
 
 ## 🎮 Demo 演示
 
-https://github.com/innerca/dungeons-and-dragons-agent-proj/blob/main/output_40MB.mp4
+https://github.com/innerca/dungeons-and-dragons-agent-proj/blob/main/demo-gameplay.mp4
 
 > 视频展示了完整的游戏流程，包含角色创建、世界探索、战斗系统等核心功能。
 
