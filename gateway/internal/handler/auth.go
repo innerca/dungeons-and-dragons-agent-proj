@@ -41,7 +41,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	var req registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Printf("[ERROR] trace=%s step=auth_register status=error error=\"invalid_request_body\"", traceID)
+		log.Printf("[ERROR] trace=%s step=auth_register status=error error=\"invalid_request_body\" path=%s", traceID, r.URL.Path)
 		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
 		return
 	}
@@ -93,7 +93,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	var req loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Printf("[ERROR] trace=%s step=auth_login status=error error=\"invalid_request_body\"", traceID)
+		log.Printf("[ERROR] trace=%s step=auth_login status=error error=\"invalid_request_body\" path=%s", traceID, r.URL.Path)
 		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
 		return
 	}
@@ -153,8 +153,8 @@ func (h *AuthHandler) CreateCharacter(w http.ResponseWriter, r *http.Request) {
 	traceID := generateTraceID()
 	startTime := time.Now()
 
-	playerID := r.Context().Value("player_id")
-	if playerID == nil {
+	playerID, ok := r.Context().Value("player_id").(string)
+	if !ok || playerID == "" {
 		log.Printf("[ERROR] trace=%s step=create_character status=error error=\"unauthorized\"", traceID)
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
@@ -162,7 +162,7 @@ func (h *AuthHandler) CreateCharacter(w http.ResponseWriter, r *http.Request) {
 
 	var req createCharacterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Printf("[ERROR] trace=%s step=create_character status=error error=\"invalid_request_body\"", traceID)
+		log.Printf("[ERROR] trace=%s step=create_character status=error error=\"invalid_request_body\" path=%s", traceID, r.URL.Path)
 		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
 		return
 	}
@@ -173,10 +173,10 @@ func (h *AuthHandler) CreateCharacter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("[INFO] trace=%s step=create_character player_id=%s name=%s", traceID, playerID.(string), req.Name)
+	log.Printf("[INFO] trace=%s step=create_character player_id=%s name=%s", traceID, playerID, req.Name)
 
 	resp, err := h.grpcClient.CreateCharacter(r.Context(), &gamev1.CreateCharacterRequest{
-		PlayerId: playerID.(string),
+		PlayerId: playerID,
 		Name:     req.Name,
 		StatStr:  req.StatSTR,
 		StatAgi:  req.StatAGI,
@@ -211,17 +211,17 @@ func (h *AuthHandler) GetPlayerState(w http.ResponseWriter, r *http.Request) {
 	traceID := generateTraceID()
 	startTime := time.Now()
 
-	playerID := r.Context().Value("player_id")
-	if playerID == nil {
+	playerID, ok := r.Context().Value("player_id").(string)
+	if !ok || playerID == "" {
 		log.Printf("[ERROR] trace=%s step=get_player_state status=error error=\"unauthorized\"", traceID)
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
 
-	log.Printf("[INFO] trace=%s step=get_player_state player_id=%s", traceID, playerID.(string))
+	log.Printf("[INFO] trace=%s step=get_player_state player_id=%s", traceID, playerID)
 
 	resp, err := h.grpcClient.GetPlayerState(r.Context(), &gamev1.GetPlayerStateRequest{
-		PlayerId: playerID.(string),
+		PlayerId: playerID,
 	}, traceID)
 	if err != nil {
 		log.Printf("[ERROR] trace=%s step=grpc_get_player_state status=error error=\"%s\"", traceID, err.Error())
@@ -238,7 +238,7 @@ func (h *AuthHandler) GetPlayerState(w http.ResponseWriter, r *http.Request) {
 	}
 
 	latencyMs := time.Since(startTime).Milliseconds()
-	log.Printf("[INFO] trace=%s step=get_player_state_complete player_id=%s latency_ms=%d", traceID, playerID.(string), latencyMs)
+	log.Printf("[INFO] trace=%s step=get_player_state_complete player_id=%s latency_ms=%d", traceID, playerID, latencyMs)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)

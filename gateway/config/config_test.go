@@ -3,13 +3,17 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
 
 func TestLoadConfig_Valid(t *testing.T) {
 	// Use the actual config.yaml file from the project
-	configPath := filepath.Join("..", "config", "config.yaml")
+	// Get the directory of the current test file and construct path relative to it
+	_, currentFile, _, _ := runtime.Caller(0)
+	currentDir := filepath.Dir(currentFile)
+	configPath := filepath.Join(currentDir, "..", "config", "config.yaml")
 
 	cfg, err := Load(configPath)
 	if err != nil {

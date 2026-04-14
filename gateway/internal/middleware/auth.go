@@ -22,8 +22,12 @@ func Auth(rdb *redis.Client, authKeyPrefix string) func(http.Handler) http.Handl
 
 			playerID, err := rdb.Get(r.Context(), authKeyPrefix+token).Result()
 			if err == redis.Nil || playerID == "" {
-				// Log for debugging - token not found in Redis
-				log.Printf("[AUTH] Token not found in Redis: key=%s...", authKeyPrefix+token[:8])
+				// Log for debugging - token not found in Redis (mask token for security)
+				maskedToken := "..."
+				if len(token) >= 4 {
+					maskedToken = "..." + token[len(token)-4:]
+				}
+				log.Printf("[AUTH] Token not found in Redis: token=%s", maskedToken)
 				http.Error(w, `{"error":"invalid or expired token"}`, http.StatusUnauthorized)
 				return
 			}

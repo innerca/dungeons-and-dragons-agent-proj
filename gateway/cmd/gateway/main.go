@@ -68,6 +68,11 @@ func main() {
 	go func() {
 		log.Printf("Gateway starting on :%d", cfg.Server.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			// Note: log.Fatalf would exit without running deferred cleanup (grpcClient.Close, rdb.Close)
+			// This is acceptable here because:
+			// 1. Server error is fatal - the gateway cannot function without HTTP server
+			// 2. The process is about to exit anyway
+			// 3. OS will reclaim resources (socket cleanup)
 			log.Fatalf("Server error: %v", err)
 		}
 	}()
