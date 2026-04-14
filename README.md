@@ -187,15 +187,16 @@ cd gateway && GO111MODULE=on go test ./... -v
 ## 测试覆盖率
 
 ### 总体统计
-- ✅ **测试总数**: 207 passed, 2 skipped, 0 failed
-- ✅ **行覆盖率**: **45%** (1033/2306)
-- ✅ **分支覆盖率**: **42%** (66/568)
+- ✅ **测试总数**: 217 passed, 0 skipped, 0 failed
+- ✅ **行覆盖率**: **49%** (1184/2432)
+- ✅ **分支覆盖率**: **47%** (274/579)
+- ✅ **CI 集成**: GitHub Actions 自动运行测试 + 覆盖率检查
 
 ### 核心模块覆盖率
 
 | 模块 | 行覆盖率 | 分支覆盖率 | 测试数 | 状态 |
 |------|---------|-----------|--------|------|
-| action_executor.py | 54% | 47% | 53 | ✅ 良好 |
+| action_executor.py | 72% | 68% | 63 | 🌟 优秀 |
 | combat_state.py | 88% | ~75% | 5 | ✅ 优秀 |
 | context_builder.py | 77% | ~65% | 12 | ✅ 良好 |
 | quest_service.py | 83% | ~70% | 8 | ✅ 良好 |
@@ -210,11 +211,14 @@ cd gateway && GO111MODULE=on go test ./... -v
 - ✅ 状态转换测试（升级逻辑、战斗状态）
 - ✅ 错误处理测试（未知工具、异常捕获）
 - ✅ Mock 集成测试（fakeredis、asyncpg monkeypatch）
+- ✅ 条件分支测试（命中/未命中/暴击/怪物死亡）
+- ✅ 确定性测试（无概率性断言，全部使用 mock）
 
 **Mock 策略**:
 - Redis: `fakeredis.aioredis.FakeRedis`
 - PostgreSQL: `monkeypatch` + `AsyncMock`
 - Game Service: `patch` decorator
+- Random: 函数 mock 替代 return_value
 
 ## 环境要求
 
@@ -330,42 +334,34 @@ make verify-vectordb
 
 ## 更新日志
 
-### v0.5005 (2026-04-14) - 单测覆盖率提升 Phase 2 + 测试质量修复
+### v0.5005 (2026-04-14) - 单测覆盖率提升 Phase 2 + 测试质量修复 + CI 集成
+
+**CI 集成**
+- ✅ **GitHub Actions 增强**: 自动运行测试 + 覆盖率检查
+  - GameServer: 覆盖率阈值 40%，自动生成 XML/HTML/JUnit 报告
+  - Gateway: 覆盖率阈值 50%，race condition 检测
+  - Codecov 集成: 自动上传覆盖率报告，便于 PR 审查
+  - Artifacts: 保留测试报告和覆盖率报告 30 天
 
 **测试覆盖增强**
-- **action_executor.py 覆盖率大幅提升**: 从 16.8% 提升至 **54%** (+37.2%)
-  - 新增 22 个 handler 测试，覆盖 12 个工具处理器
-  - TestHandleUseItem (3 tests): 使用物品（存在/不存在/无角色）
-  - TestHandleFlee (2 tests): 逃跑逻辑（成功/不在战斗）
-  - TestHandleMoveTo (2 tests): 移动逻辑（新位置/当前位置）
-  - TestHandleTalkToNPC (2 tests): NPC 对话（首次/已有关系）
-  - TestHandleAcceptQuest (2 tests): 接受任务（成功/已完成）
-  - TestHandleInspect (2 tests): 查看信息（怪物/未找到）
-  - TestHandleCheckStatus (1 test): 查看角色状态
-  - TestHandleCheckInventory (2 tests): 查看背包（有物品/空背包）
-  - TestHandleRest (2 tests): 休息恢复（受伤/满 HP）
-  - TestHandleRollDice (2 tests): 掷骰子（d20/多骰子）
-
-**总体测试统计**
-- 测试总数: **207 passed**, 2 skipped, 0 failed
-- 行覆盖率: **45%** (1033/2306)
-- 分支覆盖率: **42%** (66/568)
-- 6 个核心模块 80%+ 覆盖率，1 个模块 100%
+- **action_executor.py 分支覆盖率大幅提升**: 从 47% 提升至 **68%** (+21%)
+  - 新增 10 个条件分支测试，覆盖 4 个核心 handler
+  - attack handler (3 tests): 未命中、暴击、怪物死亡
+  - use_item handler (3 tests): 解毒药、传送水晶、未知物品
+  - flee handler (1 test): 逃跑失败分支
+  - move_to handler (3 tests): 危险区域遭遇战、安全区域无遭遇、无 location 参数
 
 **测试质量修复**
-- 修复 3 个“为了通过而通过”的测试：
-  - test_move_to_new_location: 添加 area 参数，移除无意义断言
-  - test_rest_heal_hp: 强化断言确保 HP 真正增加
-  - test_inspect_monster: 补充完整 mock 数据字段
+- ✅ 删除 2 个过时 skip 测试（test_handle_attack_start_combat, test_handle_attack_existing_combat）
+- ✅ 修复 4 个宽松断言（使用 `or` 条件的断言改为精确匹配）
+- ✅ 修复 2 个概率性测试（test_roll_natural_max, test_roll_natural_min 改为确定性 mock）
+- 结果: 217 passed, **0 skipped** (之前 2 skipped)
 
-**Bug 修复**
-- 修复 `_handle_talk_to_npc` 中 rel 为 None 时的 KeyError（PR #6）
-- 首次与 NPC 对话不再崩溃，正确初始化关系等级为 0
-
-**PR 维护工作流**
-- 添加 `scripts/update-pr-body.sh` 脚本，自动维护 PR 描述
-- 支持增量更新模式，保留历史更新日志
-- 自动统计覆盖率、测试数、提交历史
+**总体测试统计**
+- 测试总数: **217 passed**, 0 skipped, 0 failed
+- 行覆盖率: **49%** (1184/2432)
+- 分支覆盖率: **47%** (274/579)
+- action_executor 分支覆盖率: **68%**
 
 ### v0.5004 (2026-04-14) - 单测覆盖率提升 Phase 1
 
