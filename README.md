@@ -1,6 +1,6 @@
 # Dungeons & Dragons Agent Project
 
-> **当前版本：v0.5006** | [更新日志](#更新日志)
+> **当前版本：v0.5007** | [更新日志](#更新日志)
 
 AI 驱动的 DND 游戏项目，基于微服务架构构建。以刀剑神域 Progressive 系列小说为世界观基础，通过 RAG 检索增强生成实现沉浸式游戏体验。
 
@@ -184,15 +184,20 @@ cd gameserver && uv run pytest tests/ --cov=src/gameserver --cov-branch
 
 ```bash
 cd gateway && GO111MODULE=on go test ./... -v
+
+# 带覆盖率报告
+cd gateway && GO111MODULE=on go test ./... -coverprofile=coverage.out && go tool cover -html=coverage.out -o coverage.html
 ```
 
 ## 测试覆盖率
 
 ### 总体统计
-- ✅ **测试总数**: 241 passed, 0 skipped, 0 failed
-- ✅ **行覆盖率**: **52.30%** (1224/2306)
-- ✅ **分支覆盖率**: **50%** (287/568)
-- ✅ **CI 集成**: GitHub Actions 自动运行测试 + 覆盖率检查
+- ✅ **Python GameServer 测试**: 241 passed, 0 skipped, 0 failed
+- ✅ **Go Gateway 测试**: 52个测试用例，38个通过，8个测试文件
+- ✅ **Python 行覆盖率**: **52.30%** (1224/2306)
+- ✅ **Python 分支覆盖率**: **50%** (287/568)
+- ✅ **Go Gateway 语句覆盖率**: **41.4%**
+- ✅ **CI 集成**: GitHub Actions 自动运行双端测试 + 覆盖率检查（Go阈值40%）
 
 ### 核心模块覆盖率
 
@@ -207,6 +212,18 @@ cd gateway && GO111MODULE=on go test ./... -v
 | state_service.py | 86% | 77% | 15 | ✅ 良好 |
 | postgres.py | 88% | 67% | 4 | ✅ 良好 |
 | redis_client.py | 87% | 67% | 4 | ✅ 良好 |
+
+### Go Gateway 测试覆盖
+
+| 模块 | 测试文件 | 覆盖率 | 测试内容 |
+|------|---------|--------|---------|
+| grpc/client | grpc_test.go | 0.0% | gRPC客户端连接和流式响应（无测试用例） |
+| handler/* | auth/channels/sse/websocket_test.go | 34.7% | 认证、通道、SSE、WebSocket处理 |
+| middleware/* | auth/cors/middleware_test.go | 76.0% | Auth中间件、CORS、请求日志 |
+| server/* | server_test.go | 100.0% | HTTP服务器启动和配置 |
+| config/* | config_test.go | 100.0% | 配置加载和验证 |
+
+**注**：Go覆盖率只统计语句覆盖率（statement coverage），不统计分支覆盖率。
 
 ### 测试质量
 - ✅ 边界条件测试（HP=0、最小伤害、属性极值）
@@ -335,6 +352,20 @@ make verify-vectordb
 ```
 
 ## 更新日志
+
+### v0.5007 (2026-04-15) - Gateway测试覆盖率补充
+
+**Gateway测试覆盖率补充**
+- ✅ 新增 Go Gateway 测试覆盖表格（8个测试文件）
+- ✅ 覆盖模块：grpc/handler/middleware/server/config
+- ✅ 添加Gateway覆盖率报告生成命令
+- ✅ 区分Python GameServer和Go Gateway测试统计
+- ✅ 补充准确的测试数据：52个用例，38个通过，总覆盖率41.4%
+
+**链接维护**
+- ✅ 更新 README 快速索引中的所有文档链接
+- ✅ 更新 agent-engineering-handbook.md 内部对完整版的引用
+- ✅ 验证所有文档链接和锚点跳转正确
 
 ### v0.5006 (2026-04-14) - 核心模块测试覆盖率大幅提升至 84%+
 
