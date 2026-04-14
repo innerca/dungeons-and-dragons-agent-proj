@@ -1,16 +1,23 @@
 # CLAUDE.md
 
-**版本**：V2.4  
+**版本**：V2.5  
 **最后更新**：2026-04-15  
-**变更说明**：增加规则编号显式标注、CI行为说明、安全红线R6-R11、豁免审计要求、AI执行附录。
+**变更说明**：增加六语言专属审查Prompt参考链接、规则编号显式标注、CI行为说明、安全红线R6-R11、豁免审计要求、AI执行附录。
 
 本文件为项目AI助手（Claude Code）提供代码质量审查规范指引。所有规则均为强制执行，除非明确标注豁免。
 
-> **⚠️ 多语言提示**：本规范为通用质量标准。在不同语言项目（Java/Python/Go/TypeScript等）中使用时，**应根据语言特性生成专属Prompt**，调整：
-> - 代码示例的语言语法
-> - 框架特定注解（如Java的`@Transactional`、Python的`@transaction.atomic`、Go的`db.Begin()`）
-> - 语言特有的最佳实践和反模式
-> - 测试框架语法（JUnit/pytest/go test/Jest等）
+> **🌍 多语言专属审查Prompt**：本规范为通用质量标准。已根据各语言特性生成专属审查Prompt，**实际审查时应优先使用对应语言版本**：
+> - [Java 专属审查Prompt](./quality_check_java.md) - 基于本规范特化，增加线程安全、InterruptedException、Optional、JPQL注入等Java特有规则
+> - [Python 专属审查Prompt](./quality_check_python.md) - 基于本规范特化，增加async阻塞检测、realpath异常降级、事务内异步IO等Python特有规则
+> - [Go 专属审查Prompt](./quality_check_go.md) - 基于本规范特化，增加goroutine循环变量捕获、err!=nil豁免、事务内goroutine等Go特有规则
+> - [TypeScript 专属审查Prompt](./quality_check_typescript.md) - 基于本规范特化，增加Promise Rejection、同构环境差异、前端组件豁免等TS特有规则
+> - [C++ 专属审查Prompt](./quality_check_cpp.md) - 基于本规范特化，增加const正确性、lambda捕获安全、析构函数异常、RAII等C++特有规则
+> - [Rust 专属审查Prompt](./quality_check_rust.md) - 基于本规范特化，增加unsafe SAFETY注释、FFI安全、Pin/Unpin、所有权借用等Rust特有规则
+>
+> **使用原则**：
+> 1. 优先使用对应语言的专属Prompt（已包含本规范所有通用规则）
+> 2. 专属Prompt中的语言特有规则优先于本通用规范
+> 3. 本通用规范作为基准参考，确保跨语言一致性
 
 ## 目录
 
