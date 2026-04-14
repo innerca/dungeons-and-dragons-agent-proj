@@ -1,6 +1,6 @@
 # Dungeons & Dragons Agent Project
 
-> **当前版本：v0.5002** | [更新日志](#更新日志)
+> **当前版本：v0.5003** | [更新日志](#更新日志)
 
 AI 驱动的 DND 游戏项目，基于微服务架构构建。以刀剑神域 Progressive 系列小说为世界观基础，通过 RAG 检索增强生成实现沉浸式游戏体验。
 
@@ -292,6 +292,14 @@ make verify-vectordb
 ```
 
 ## 更新日志
+
+### v0.5003 (2026-04-14) - 代码质量规范检查与修复
+
+**代码质量改进**
+- **Python GameServer**: 修复 SQL 注入风险（player_repo 参数化 allowlist）、变量作用域问题、空值检查（openai response.usage、novel parser）、异常处理规范化（分类捕获替代 bare except）、防御性检查（settings、quest_service、chromadb_client）、移除重复代码
+- **Go Gateway**: 日志中脱敏认证 token（仅显示后 4 位）、错误日志增加请求路径上下文、类型断言使用 comma-ok 模式、修复配置测试路径解析
+- **Frontend**: API 服务增加 JSON 解析 try-catch、错误日志记录（Home.tsx）、提取 shouldTriggerWelcome() 提升可读性、变量命名优化（options → requestOptions）
+- **测试增强**: test_action_executor.py 添加 Given-When-Then 结构注释
 
 ### v0.5002 (2026-04-14) - 测试覆盖 + Demo 数据
 
