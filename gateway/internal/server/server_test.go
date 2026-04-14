@@ -75,7 +75,7 @@ func TestNewHTTPServer_Routes(t *testing.T) {
 		{name: "register", method: http.MethodPost, path: "/api/v1/auth/register", expectNotFound: false},
 		{name: "login", method: http.MethodPost, path: "/api/v1/auth/login", expectNotFound: false},
 		{name: "health", method: http.MethodGet, path: "/health", expectNotFound: false},
-		
+
 		// Authenticated routes (should return 401 without token)
 		{name: "player state without auth", method: http.MethodGet, path: "/api/v1/player/state", expectAuth: true},
 		{name: "create character without auth", method: http.MethodPost, path: "/api/v1/character", expectAuth: true},
