@@ -14,6 +14,12 @@ from gameserver.game.action_executor import (
 )
 
 
+@pytest.fixture
+def executor():
+    """Create ActionExecutor instance."""
+    return ActionExecutor()
+
+
 class TestRoll:
     """Tests for dice rolling functions."""
 
@@ -224,11 +230,6 @@ class TestActionResult:
 class TestActionExecutor:
     """Tests for ActionExecutor class."""
 
-    @pytest.fixture
-    def executor(self):
-        """Create ActionExecutor instance."""
-        return ActionExecutor()
-
     @pytest.mark.asyncio
     async def test_execute_unknown_tool(self, executor):
         """未知工具返回错误."""
@@ -352,10 +353,6 @@ class TestActionExecutor:
 
 class TestActionExecutorDefend:
     """Tests for _handle_defend."""
-
-    @pytest.fixture
-    def executor(self):
-        return ActionExecutor()
 
     @pytest.mark.asyncio
     async def test_handle_defend_success(self, executor):
@@ -491,3 +488,359 @@ class TestActionExecutorDamageCalc:
         hp_high = _calc_max_hp(level=10, vit=14)
         
         assert hp_low < hp_mid < hp_high
+
+
+class TestHandleUseItem:
+    """Tests for use_item handler."""
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_use_healing_potion(self, mock_pg, executor):
+        """使用治疗药水恢复 HP."""
+        # Given: Player with low HP
+        mock_pg.return_value = AsyncMock()
+        mock_pg.return_value.fetchrow = AsyncMock(return_value={
+            "item_type": "consumable",
+            "effect_json": '{"heal_hp": 30}'
+        })
+        mock_pg.return_value.execute = AsyncMock()
+        
+        state = {
+            "character_id": "550e8400-e29b-41d4-a716-446655440000",
+            "current_hp": 30,
+            "max_hp": 100,
+        }
+        
+        # When: Use healing potion
+        result = await executor._handle_use_item(
+            player_id="test-player",
+            state=state,
+            args={"item_id": "healing_potion"},
+            trace_id="test-trace"
+        )
+        
+        # Then: Should heal HP
+        assert result.success is True
+        assert result.state_changes["current_hp"] > 30
+        assert "healing_potion" in result.description.lower() or result.state_changes["current_hp"] > 30
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_use_item_at_full_hp(self, mock_pg, executor):
+        """满 HP 时使用治疗药水."""
+        # Given: Player at full HP
+        mock_pg.return_value = AsyncMock()
+        mock_pg.return_value.fetchrow = AsyncMock(return_value={
+            "item_type": "consumable",
+            "effect_json": '{"heal_hp": 30}'
+        })
+        mock_pg.return_value.execute = AsyncMock()
+        
+        state = {
+            "character_id": "550e8400-e29b-41d4-a716-446655440000",
+            "current_hp": 100,
+            "max_hp": 100,
+        }
+        
+        # When: Use healing potion
+        result = await executor._handle_use_item(
+            player_id="test-player",
+            state=state,
+            args={"item_id": "healing_potion"},
+            trace_id="test-trace"
+        )
+        
+        # Then: Should not exceed max HP
+        assert result.success is True
+        assert result.state_changes.get("current_hp", 100) <= 100
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_use_unknown_item(self, mock_pg, executor):
+        """使用未知物品."""
+        # Given: Unknown item
+        mock_pg.return_value = AsyncMock()
+        state = {"current_hp": 50, "max_hp": 100}
+        
+        # When: Use unknown item
+        result = await executor._handle_use_item(
+            player_id="test-player",
+            state=state,
+            args={"item": "unknown_item"},
+            trace_id="test-trace"
+        )
+        
+        # Then: Should fail or return no effect
+        assert result.success is False or "unknown" in result.description.lower()
+
+
+class TestHandleFlee:
+    """Tests for flee handler."""
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.end_combat')
+    @patch('gameserver.game.action_executor.get_combat')
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_flee_success(self, mock_pg, mock_get, mock_end, executor):
+        """逃跑成功."""
+        # Given: In combat
+        mock_pg.return_value = AsyncMock()
+        mock_get.return_value = MagicMock(
+            monster=MagicMock(ac=12, hp=30, atk=5, defense=3)
+        )
+        mock_end.return_value = None
+        
+        state = {
+            "current_hp": 50,
+            "stat_agi": 14,  # High agility for better flee chance
+        }
+        
+        # When: Flee
+        result = await executor._handle_flee(
+            player_id="test-player",
+            state=state,
+            args={},
+            trace_id="test-trace"
+        )
+        
+        # Then: Should end combat
+        mock_end.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_flee_not_in_combat(self, executor):
+        """不在战斗中逃跑."""
+        # Given: Not in combat
+        state = {"current_hp": 50, "stat_agi": 10}
+        
+        # When: Try to flee
+        with patch('gameserver.game.action_executor.get_combat', return_value=None):
+            result = await executor._handle_flee(
+                player_id="test-player",
+                state=state,
+                args={},
+                trace_id="test-trace"
+            )
+        
+        # Then: Should fail
+        assert result.success is False
+        assert "combat" in result.error.lower()
+
+
+class TestHandleMoveTo:
+    """Tests for move_to handler."""
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_move_to_new_location(self, mock_pg, executor):
+        """移动到新位置."""
+        # Given: Player state
+        mock_pg.return_value = AsyncMock()
+        state = {
+            "current_area": "starting_city",
+            "current_location": "town_square",
+            "current_floor": "1",
+        }
+        
+        # When: Move to new location
+        result = await executor._handle_move_to(
+            player_id="test-player",
+            state=state,
+            args={"location": "forest_entrance"},
+            trace_id="test-trace"
+        )
+        
+        # Then: Should update location
+        assert result.success is True
+        assert result.state_changes["current_location"] == "forest_entrance"
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_move_to_same_location(self, mock_pg, executor):
+        """移动到当前位置."""
+        # Given: Player state
+        mock_pg.return_value = AsyncMock()
+        state = {
+            "current_area": "starting_city",
+            "current_location": "town_square",
+            "current_floor": "1",
+        }
+        
+        # When: Move to same location
+        result = await executor._handle_move_to(
+            player_id="test-player",
+            state=state,
+            args={"location": "town_square"},
+            trace_id="test-trace"
+        )
+        
+        # Then: Should succeed but no change
+        assert result.success is True
+
+
+class TestHandleTalkToNPC:
+    """Tests for talk_to_npc handler."""
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.npc_relationship_service')
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_talk_to_npc_first_time(self, mock_pg, mock_rels, executor):
+        """首次与 NPC 对话."""
+        # Given: New NPC interaction
+        mock_pg.return_value = AsyncMock()
+        mock_rels.get_relationship.return_value = None
+        mock_rels.record_interaction.return_value = None
+        
+        state = {"current_hp": 100, "level": 1}
+        
+        # When: Talk to NPC
+        result = await executor._handle_talk_to_npc(
+            player_id="test-player",
+            state=state,
+            args={"npc_name": "blacksmith"},
+            trace_id="test-trace"
+        )
+        
+        # Then: Should record interaction
+        mock_rels.record_interaction.assert_called_once()
+        assert result.success is True
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.npc_relationship_service')
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_talk_to_npc_existing_relationship(self, mock_pg, mock_rels, executor):
+        """与已有关系的 NPC 对话."""
+        # Given: Existing relationship
+        mock_pg.return_value = AsyncMock()
+        mock_rels.get_relationship.return_value = {
+            "npc_name": "blacksmith",
+            "level": 3,
+            "interaction_count": 5,
+        }
+        mock_rels.record_interaction.return_value = None
+        
+        state = {"current_hp": 100, "level": 1}
+        
+        # When: Talk to NPC
+        result = await executor._handle_talk_to_npc(
+            player_id="test-player",
+            state=state,
+            args={"npc_name": "blacksmith"},
+            trace_id="test-trace"
+        )
+        
+        # Then: Should update relationship
+        mock_rels.record_interaction.assert_called_once()
+        assert result.success is True
+
+
+class TestHandleAcceptQuest:
+    """Tests for accept_quest handler."""
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.quest_service')
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_accept_quest_success(self, mock_pg, mock_quests, executor):
+        """成功接受任务."""
+        # Given: Available quest
+        mock_pg.return_value = AsyncMock()
+        mock_quests.accept_quest.return_value = {
+            "success": True,
+            "quest_id": "quest_001",
+            "quest_name": "Defeat Goblins",
+        }
+        
+        state = {"current_hp": 100, "level": 1}
+        
+        # When: Accept quest
+        result = await executor._handle_accept_quest(
+            player_id="test-player",
+            state=state,
+            args={"quest_id": "quest_001"},
+            trace_id="test-trace"
+        )
+        
+        # Then: Should accept quest
+        mock_quests.accept_quest.assert_called_once()
+        assert result.success is True
+        assert "quest_001" in result.description
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.quest_service')
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_accept_quest_already_completed(self, mock_pg, mock_quests, executor):
+        """接受已完成的任务."""
+        # Given: Quest already completed
+        mock_pg.return_value = AsyncMock()
+        mock_quests.accept_quest.return_value = {
+            "success": False,
+            "error": "Quest already completed",
+        }
+        
+        state = {"current_hp": 100, "level": 1}
+        
+        # When: Accept quest
+        result = await executor._handle_accept_quest(
+            player_id="test-player",
+            state=state,
+            args={"quest_id": "quest_001"},
+            trace_id="test-trace"
+        )
+        
+        # Then: Should fail
+        assert result.success is False
+        assert "completed" in result.error.lower()
+
+
+class TestHandleRest:
+    """Tests for rest handler."""
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_rest_heal_hp(self, mock_pg, executor):
+        """休息恢复 HP."""
+        # Given: Injured player
+        mock_pg.return_value = AsyncMock()
+        state = {
+            "current_hp": 30,
+            "max_hp": 100,
+            "level": 1,
+            "stat_vit": 10,
+        }
+        
+        # When: Rest
+        result = await executor._handle_rest(
+            player_id="test-player",
+            state=state,
+            args={},
+            trace_id="test-trace"
+        )
+        
+        # Then: Should heal HP
+        assert result.success is True
+        assert result.state_changes["current_hp"] > 30
+        assert result.state_changes["current_hp"] <= 100
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_rest_at_full_hp(self, mock_pg, executor):
+        """满 HP 时休息."""
+        # Given: Player at full HP
+        mock_pg.return_value = AsyncMock()
+        state = {
+            "current_hp": 100,
+            "max_hp": 100,
+            "level": 1,
+            "stat_vit": 10,
+        }
+        
+        # When: Rest
+        result = await executor._handle_rest(
+            player_id="test-player",
+            state=state,
+            args={},
+            trace_id="test-trace"
+        )
+        
+        # Then: Should succeed but no HP change
+        assert result.success is True
+        assert result.state_changes.get("current_hp", 100) == 100
