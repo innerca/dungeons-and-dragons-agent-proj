@@ -193,7 +193,7 @@ cd gateway && GO111MODULE=on go test ./... -coverprofile=coverage.out && go tool
 
 ### 总体统计
 - ✅ **Python GameServer 测试**: 241 passed, 0 skipped, 0 failed
-- ✅ **Go Gateway 测试**: 52个测试用例，38个通过，7个测试文件
+- ✅ **Go Gateway 测试**: 52个测试用例，38个通过，8个测试文件
 - ✅ **Python 行覆盖率**: **52.30%** (1224/2306)
 - ✅ **Python 分支覆盖率**: **50%** (287/568)
 - ✅ **Go Gateway 语句覆盖率**: **41.4%**
@@ -353,26 +353,14 @@ make verify-vectordb
 
 ## 更新日志
 
-### v0.5007 (2026-04-15) - 文档结构重组 + Gateway测试覆盖率补充
-
-**文档结构重组**
-- 📁 创建 `engineering/` 目录集中管理工程实践文档
-- 📁 移动 6 个文档到 engineering 目录：
-  - Agent工程手册完整版
-  - AI质量检查提示词 (claude_quality_check_prompt.md)
-  - Claude模板
-  - 工程题集
-  - 端侧用户画像系统方案（2个版本）
-- 📁 将 agent-engineering-handbook.md 移至项目根目录
-
-**Demo视频优化**
-- 🎬 重命名演示视频 output_40MB.mp4 → demo-gameplay.mp4
+### v0.5007 (2026-04-15) - Gateway测试覆盖率补充
 
 **Gateway测试覆盖率补充**
-- ✅ 新增 Go Gateway 测试覆盖表格（7个测试文件）
-- ✅ 覆盖模块：grpc/handler/auth/channels/sse/websocket/middleware/server
+- ✅ 新增 Go Gateway 测试覆盖表格（8个测试文件）
+- ✅ 覆盖模块：grpc/handler/middleware/server/config
 - ✅ 添加Gateway覆盖率报告生成命令
 - ✅ 区分Python GameServer和Go Gateway测试统计
+- ✅ 补充准确的测试数据：52个用例，38个通过，总覆盖率41.4%
 
 **链接维护**
 - ✅ 更新 README 快速索引中的所有文档链接
