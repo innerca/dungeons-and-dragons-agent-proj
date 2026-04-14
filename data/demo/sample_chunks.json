@@ -1,0 +1,202 @@
+[
+  {
+    "id": "demo_world_001",
+    "text": "艾恩葛朗特是一座漂浮在无尽云海之上的巨大钢铁城堡，共有一百层。每一层都是一个完整的世界，拥有独特的地形、生态和文明。第一层「起始之城」是玩家们的诞生地，中央矗立着高耸入云的黑色迷宫塔，那是通往更高层的唯一道路。城堡的外墙由不知名的黑色金属构成，据说即使是传说中的神器也无法在其上留下痕迹。",
+    "metadata": {
+      "source": "demo_world_setting",
+      "chunk_index": 0,
+      "aincrad_layer": 1,
+      "category": "world"
+    }
+  },
+  {
+    "id": "demo_world_002",
+    "text": "死亡游戏开始的那一刻，一万名玩家被困在这个虚拟世界中。游戏设计者茅场晶彦宣布：在这个游戏中死亡，现实世界中也会死亡；只有通关第100层才能离开。恐惧和混乱席卷了起始之城，但也有一部分玩家迅速冷静下来，开始组织攻略组，决心征服这座死亡城堡。",
+    "metadata": {
+      "source": "demo_world_setting",
+      "chunk_index": 1,
+      "aincrad_layer": 1,
+      "category": "world"
+    }
+  },
+  {
+    "id": "demo_world_003",
+    "text": "珂尔是艾恩葛朗特中的通用货币，可以通过击败怪物、完成任务或出售物品获得。起始之城中有各种商店，出售武器、防具、药水和材料。随着楼层的推进，商品的种类和质量也会提升。据说在第50层以上，甚至可以买到能够改变角色外观的稀有道具。",
+    "metadata": {
+      "source": "demo_world_setting",
+      "chunk_index": 2,
+      "aincrad_layer": 1,
+      "category": "world"
+    }
+  },
+  {
+    "id": "demo_world_004",
+    "text": "剑技系统是SAO的核心战斗机制。玩家可以装备特定的剑技，通过系统辅助完成常人无法做到的高速连击。剑技分为单手剑、细剑、双手剑、弯刀、匕首、双手斧、长枪等多种类型，每种武器都有其独特的技能树。熟练度越高，剑技的威力越大，冷却时间越短。",
+    "metadata": {
+      "source": "demo_world_setting",
+      "chunk_index": 3,
+      "aincrad_layer": 1,
+      "category": "world"
+    }
+  },
+  {
+    "id": "demo_dungeon_001",
+    "text": "第一层迷宫塔坐落在起始之城的正中央，是一座漆黑的石质高塔。塔内光线昏暗，只有墙壁上的蓝色水晶提供微弱的照明。迷宫的结构复杂多变，每一层都有不同的布局和陷阱。据说越往上，怪物的等级越高，掉落的物品也越珍贵。塔顶是楼层BOSS的房间，只有击败BOSS才能开通通往第二层的转移门。",
+    "metadata": {
+      "source": "demo_dungeon",
+      "chunk_index": 0,
+      "aincrad_layer": 1,
+      "category": "dungeon"
+    }
+  },
+  {
+    "id": "demo_dungeon_002",
+    "text": "迷宫塔第5层是一个开阔的地下广场，四周布满了残破的石柱。这里栖息着废墟狗头人突击兵，它们身高约1.5米，直立行走，手持简陋的手斧。这些怪物擅长三连击，但攻击后会露出破绽。单独一只并不可怕，但如果引来一群，即使是经验丰富的玩家也会陷入危险。",
+    "metadata": {
+      "source": "demo_dungeon",
+      "chunk_index": 1,
+      "aincrad_layer": 1,
+      "category": "dungeon"
+    }
+  },
+  {
+    "id": "demo_dungeon_003",
+    "text": "迷宫塔的最顶层是一个巨大的长方形房间，宽20米，纵深100米。房间尽头矗立着通往第二层的巨大门扉，散发着淡蓝色的光芒。这就是楼层BOSS的房间，空气中弥漫着紧张和恐惧的气息。据说第一层的BOSS是一只巨大的狗头人领主，拥有四条生命值，在最后阶段会切换武器释放强力的剑技。",
+    "metadata": {
+      "source": "demo_dungeon",
+      "chunk_index": 2,
+      "aincrad_layer": 1,
+      "category": "dungeon"
+    }
+  },
+  {
+    "id": "demo_dungeon_004",
+    "text": "草原地带环绕着起始之城，是新手玩家练级的首选区域。这里生长着齐腰高的野草，远处可以看到起伏的小山丘。白天，阳光透过虚拟的天空洒落，给人一种宁静的感觉。但这份宁静下隐藏着危险——山猪、野狼和各种昆虫型怪物潜伏在草丛中，随时准备袭击落单的冒险者。",
+    "metadata": {
+      "source": "demo_dungeon",
+      "chunk_index": 3,
+      "aincrad_layer": 1,
+      "category": "dungeon"
+    }
+  },
+  {
+    "id": "demo_npc_001",
+    "text": "亚鲁戈是SAO中最著名的情报贩子，人称「老鼠」。她是个身材娇小的少女，脸颊两侧各有三条胡须状的纹路，总是穿着灰黄色的连帽斗篷。作为全敏捷型的非战斗玩家，她跑得极快，能够在危险区域来去自如。她编写各层攻略册，经营情报买卖，但有一条绝对原则：绝不出卖封测玩家的真实身份。",
+    "metadata": {
+      "source": "demo_npc",
+      "chunk_index": 0,
+      "aincrad_layer": 1,
+      "category": "npc"
+    }
+  },
+  {
+    "id": "demo_npc_002",
+    "text": "艾基尔是一位褐色肌肤的光头巨汉，身高190厘米，体格壮硕。他是前线攻略者兼商人，使用双手斧作为武器。作为坦克型玩家，他在队伍中承担着保护队友的责任。艾基尔为人理性正义，是少数不歧视封测玩家的人之一。后来他在各层前线城镇开设了道具店，为攻略组提供后勤保障。",
+    "metadata": {
+      "source": "demo_npc",
+      "chunk_index": 1,
+      "aincrad_layer": 1,
+      "category": "npc"
+    }
+  },
+  {
+    "id": "demo_npc_003",
+    "text": "迪亚贝尔是一位自称「骑士」的蓝发青年，穿着闪亮的骑士铠甲，手持长剑和盾牌。他有很强的领袖魅力，在托尔巴纳的喷水池广场召集了44名玩家，组织第一次楼层BOSS攻略战。然而，他隐瞒了自己是封测玩家的身份，企图独占LA奖励。在BOSS战中，他被伊尔凡古的大刀剑技击中，成为了首位牺牲的玩家领袖。",
+    "metadata": {
+      "source": "demo_npc",
+      "chunk_index": 2,
+      "aincrad_layer": 1,
+      "category": "npc"
+    }
+  },
+  {
+    "id": "demo_npc_004",
+    "text": "牙王是艾恩葛朗特解放队的会长，一个刺猬头的暴躁玩家。他对封测玩家怀有强烈的敌意，认为他们独占资源导致了新手玩家的大量死亡。他在起始城镇大量招募和训练新手玩家，走人海战术路线。虽然他的态度粗暴，但内心深处是真心希望更多玩家能够生存下去。",
+    "metadata": {
+      "source": "demo_npc",
+      "chunk_index": 3,
+      "aincrad_layer": 1,
+      "category": "npc"
+    }
+  },
+  {
+    "id": "demo_combat_001",
+    "text": "战斗在SAO中是一场生死博弈。当玩家拔出武器进入战斗姿态时，系统会锁定目标并显示敌人的HP条。普通攻击没有冷却时间，但威力有限。真正的杀招是剑技——通过系统辅助完成的超高速连击。使用剑技时，身体会发出不同颜色的光芒，这是无法被打断的，但也意味着无法中途变招。",
+    "metadata": {
+      "source": "demo_combat",
+      "chunk_index": 0,
+      "aincrad_layer": 1,
+      "category": "combat"
+    }
+  },
+  {
+    "id": "demo_combat_002",
+    "text": "细剑技「Linear」是最基础的突刺技能。使用时，剑摆在身体中央，然后旋转往前笔直刺出，剑身笼罩着纯白的光芒。这个技能的冷却时间很短，只有1.5秒，是细剑使最常用的起手技。随着熟练度的提升，突刺的速度和威力都会增加。高级玩家甚至可以在突刺中途微调角度，命中敌人的弱点。",
+    "metadata": {
+      "source": "demo_combat",
+      "chunk_index": 1,
+      "aincrad_layer": 1,
+      "category": "combat"
+    }
+  },
+  {
+    "id": "demo_combat_003",
+    "text": "单手剑技「Rage Spike」是一种突进技。使用时将剑摆在左腰，以极低的姿势冲刺，剑身笼罩着淡蓝色的光芒。这个技能可以迅速拉近与敌人的距离，非常适合追击逃跑的目标或者快速接近远程敌人。但突进过程中防御力会降低，如果使用时机不当，很容易被敌人反击。",
+    "metadata": {
+      "source": "demo_combat",
+      "chunk_index": 2,
+      "aincrad_layer": 1,
+      "category": "combat"
+    }
+  },
+  {
+    "id": "demo_combat_004",
+    "text": "BOSS战是SAO中最危险的战斗形式。楼层BOSS拥有远超普通怪物的HP和攻击力，往往还有多个战斗阶段。第一层的BOSS伊尔凡古有四条HP，每消耗一条就会召唤护卫兵。在最后阶段，它会切换为大刀，释放强力的剑技。攻略BOSS需要团队配合，坦克负责吸引仇恨，输出负责造成伤害，治疗负责回复HP。",
+    "metadata": {
+      "source": "demo_combat",
+      "chunk_index": 3,
+      "aincrad_layer": 1,
+      "category": "combat"
+    }
+  },
+  {
+    "id": "demo_quest_001",
+    "text": "「韧炼之剑」是第一层著名的隐藏任务。玩家需要到达霍鲁卡村后才会触发，村长会告知附近洞窟中有一只巨型黄蜂女王。深入洞窟击败女王并取回卵珠后，交给村长就能获得准稀有单手剑「韧炼之剑」。这把剑攻击力45，性能优秀，可以用到第4层，是前线玩家的重要装备。",
+    "metadata": {
+      "source": "demo_quest",
+      "chunk_index": 0,
+      "aincrad_layer": 1,
+      "category": "quest"
+    }
+  },
+  {
+    "id": "demo_quest_002",
+    "text": "「第一次魔王攻略战」是第一层的核心主线任务。迪亚贝尔在托尔巴纳召集了44名玩家组成联合部队，挑战楼层BOSS狗头人领主伊尔凡古。这个任务难度极高，建议等级8以上参加。完成后可以获得大量经验和珂尔，还有特殊的LA奖励——午夜大衣，会给予给予BOSS最后一击的玩家。",
+    "metadata": {
+      "source": "demo_quest",
+      "chunk_index": 1,
+      "aincrad_layer": 1,
+      "category": "quest"
+    }
+  },
+  {
+    "id": "demo_quest_003",
+    "text": "「情报贩子的委托」是一个入门级的支线任务。在起始之城或托尔巴纳偶遇亚鲁戈后触发，她请求玩家帮助收集野外地图数据以编写攻略册。任务要求探索3个新区域，完成后可以获得300珂尔和100经验值，同时与亚鲁戈建立联系，之后可以向她购买各种情报和攻略册。",
+    "metadata": {
+      "source": "demo_quest",
+      "chunk_index": 2,
+      "aincrad_layer": 1,
+      "category": "quest"
+    }
+  },
+  {
+    "id": "demo_quest_004",
+    "text": "转移水晶是SAO中最重要的道具之一，可以让玩家瞬间移动到任意已开通转移门的地点。在第一层，转移门位于起始之城的中央广场，散发着耀眼的蓝色光芒。只有击败楼层BOSS后，转移门才会开通，允许玩家前往下一层。在危险的迷宫中，转移水晶是保命的必备品。",
+    "metadata": {
+      "source": "demo_quest",
+      "chunk_index": 3,
+      "aincrad_layer": 1,
+      "category": "quest"
+    }
+  }
+]
