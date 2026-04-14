@@ -1,6 +1,6 @@
 # Dungeons & Dragons Agent Project
 
-> **当前版本：v0.5006** | [更新日志](#更新日志)
+> **当前版本：v0.5007** | [更新日志](#更新日志)
 
 AI 驱动的 DND 游戏项目，基于微服务架构构建。以刀剑神域 Progressive 系列小说为世界观基础，通过 RAG 检索增强生成实现沉浸式游戏体验。
 
@@ -351,6 +351,32 @@ make verify-vectordb
 ```
 
 ## 更新日志
+
+### v0.5007 (2026-04-15) - 文档结构重组 + Gateway测试覆盖率补充
+
+**文档结构重组**
+- 📁 创建 `engineering/` 目录集中管理工程实践文档
+- 📁 移动 6 个文档到 engineering 目录：
+  - Agent工程手册完整版
+  - AI质量检查提示词 (claude_quality_check_prompt.md)
+  - Claude模板
+  - 工程题集
+  - 端侧用户画像系统方案（2个版本）
+- 📁 将 agent-engineering-handbook.md 移至项目根目录
+
+**Demo视频优化**
+- 🎬 重命名演示视频 output_40MB.mp4 → demo-gameplay.mp4
+
+**Gateway测试覆盖率补充**
+- ✅ 新增 Go Gateway 测试覆盖表格（7个测试文件）
+- ✅ 覆盖模块：grpc/handler/auth/channels/sse/websocket/middleware/server
+- ✅ 添加Gateway覆盖率报告生成命令
+- ✅ 区分Python GameServer和Go Gateway测试统计
+
+**链接维护**
+- ✅ 更新 README 快速索引中的所有文档链接
+- ✅ 更新 agent-engineering-handbook.md 内部对完整版的引用
+- ✅ 验证所有文档链接和锚点跳转正确
 
 ### v0.5006 (2026-04-14) - 核心模块测试覆盖率大幅提升至 84%+
 
