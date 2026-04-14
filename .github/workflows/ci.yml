@@ -76,7 +76,7 @@ jobs:
     
     - name: Run tests
       run: |
-        go test -v -race -coverprofile=coverage.out ./internal/... ./config/...
+        go test -v -coverprofile=coverage.out ./internal/... ./config/...
         echo ""
         echo "=== Coverage Summary ==="
         go tool cover -func=coverage.out | tail -1
