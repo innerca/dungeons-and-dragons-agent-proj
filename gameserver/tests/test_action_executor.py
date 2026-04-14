@@ -909,13 +909,15 @@ class TestHandleInspect:
         mock_pg.return_value = mock_pool
         mock_pool.fetchrow = AsyncMock(return_value={
             "name": "Goblin",
-            "name_en": "Goblin",
-            "level": 2,
-            "hp": 15,
-            "ac": 12,
             "monster_type": "humanoid",
             "level_min": 1,
             "level_max": 5,
+            "hp": 15,
+            "atk": 4,
+            "defense": 2,
+            "ac": 12,
+            "weaknesses": "fire",
+            "description": "A small green creature",
         })
         
         state = {"current_hp": 100}
