@@ -20,9 +20,9 @@ https://github.com/innerca/dungeons-and-dragons-agent-proj/blob/main/output_40MB
 
 **游戏内容** → [世界观设定](data/dnd-world-setting.md) | [游戏系统](data/dnd-game-system.md) | [小说知识库](#小说知识库向量数据库)
 
-**工程实践** → [Agent 工程手册](docs/engineering/agent-engineering-handbook.md) | [完整版手册](docs/engineering/Agent工程手册final_version.md) | [质量检查提示词](docs/engineering/claude_quality_check_prompt.md) | [Claude模板](docs/engineering/claude_template.md) | [工程题集](docs/engineering/题集.md)
+**工程实践** → [Agent 工程手册](agent-engineering-handbook.md) | [完整版手册](docs/engineering/Agent工程手册final_version.md) | [质量检查提示词](docs/engineering/claude_quality_check_prompt.md) | [Claude模板](docs/engineering/claude_template.md) | [工程题集](docs/engineering/题集.md)
 
-**架构设计** → [轻量级用户画像方案](docs/architecture/端侧轻量级用户画像系统落地方案.md) | [简洁可拓展方案](docs/architecture/端侧用户画像系统：简洁可拓展落地方案.md)
+**架构设计** → [轻量级用户画像方案](docs/engineering/端侧轻量级用户画像系统落地方案.md) | [简洁可拓展方案](docs/engineering/端侧用户画像系统：简洁可拓展落地方案.md)
 
 **关于作者** → [关于本项目与我的工作模式](#关于本项目与我的工作模式)
 
