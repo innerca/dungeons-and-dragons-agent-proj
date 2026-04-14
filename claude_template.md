@@ -96,22 +96,47 @@
 
 ---
 
-## 提交规范
+## 提交与 Git 工作流
 
+### 分支策略
+- **禁止直接 push 到 main**，所有改动必须通过 Pull Request
+- 分支命名：`feat/*`、`fix/*`、`perf/*`、`chore/*`、`refactor/*`、`docs/*`
+
+### 工作流程
+1. 创建分支：`git checkout -b type/描述`
+2. 原子化提交：一个 commit = 一个逻辑变更
+3. 推送分支：`git push origin branch-name`
+4. 创建 PR：`gh pr create --base main --head branch-name`
+5. 代码审查后手动 merge
+
+### 提交格式
 **格式**：`<type>(<scope>): <subject>\n\n<body>`
-- type：feat/fix/refactor/test/docs/chore
-- 原子化：一提交一逻辑变更；重构与行为修改分两次；多类变更主动建议拆分
+- type：feat/fix/refactor/test/docs/chore/perf
+- 中文提交，精简但完整（≤50字符）
+
+**原则**：
+- 原子化：一提交一逻辑变更
+- **分离重构与行为修改**（两次提交）
+- 多类变更主动建议拆分
 
 **示例**：
 ```
 # 纯重构
 refactor(order): extract validation
+
 - Move to separate function, no behavior change
 
 # 功能
 feat(order): cancel with async refund
+
 - Add endpoint, inject PaymentService, feature flag
 Closes #123
+
+# 文档更新
+docs(claude_template): update git workflow
+
+- Add PR flow requirements
+- Update branch naming conventions
 ```
 
 ---
