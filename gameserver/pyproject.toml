@@ -9,16 +9,12 @@ dependencies = [
     "bcrypt>=4.0.0",
     "chromadb>=1.0.0",
     "grpcio>=1.80.0",
-    "openai>=2.30.0",  # LLM + Embedding API
+    "openai>=2.30.0",  # LLM API
     "pydantic-settings>=2.13.1",
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0.3",
     "redis[hiredis]>=5.0.0",
-]
-
-[project.optional-dependencies]
-anthropic = [
-    "anthropic>=0.89.0",  # Claude LLM support (optional)
+    "sentence-transformers>=3.0.0",  # Local embedding for ChromaDB
 ]
 
 [project.scripts]

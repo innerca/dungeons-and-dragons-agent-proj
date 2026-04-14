@@ -84,9 +84,9 @@ dev-frontend: ## Start Frontend only (local)
 
 test: test-gateway test-gameserver test-frontend ## Run all tests
 
-install-gameserver: ## Install GameServer dependencies
-	@echo "Installing GameServer dependencies..."
-	cd gameserver && uv sync --frozen
+install-gameserver: ## Install GameServer dependencies (CPU-only, fast)
+	@echo "Installing GameServer dependencies (CPU-only PyTorch)..."
+	cd gameserver && uv sync --frozen --config-file uv.ci.toml
 	@echo "Installation complete."
 
 test-gateway: ## Run Gateway (Go) tests

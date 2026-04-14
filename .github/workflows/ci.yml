@@ -91,7 +91,11 @@ jobs:
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
     
     - name: Install dependencies
-      run: uv sync --frozen
+      run: |
+        # Use CPU-only PyTorch to avoid 3GB+ CUDA downloads
+        uv sync --frozen \
+          --index-url https://download.pytorch.org/whl/cpu \
+          --extra-index-url https://pypi.org/simple
     
     - name: Run linting (ruff)
       run: uv run ruff check src/ tests/ || true

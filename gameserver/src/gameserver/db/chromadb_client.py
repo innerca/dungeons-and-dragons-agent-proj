@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 import chromadb
-from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
+from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
 
 logger = logging.getLogger(__name__)
 
@@ -19,17 +19,11 @@ COLLECTION_NOVELS = "sao_progressive_novels"
 COLLECTION_ENTITIES = "sao_world_entities"
 
 _client: chromadb.ClientAPI | None = None
-_embedding_fn: OpenAIEmbeddingFunction | None = None
+_embedding_fn: SentenceTransformerEmbeddingFunction | None = None
 
 
-def init_chromadb(chromadb_path: str | None = None, api_key: str | None = None, model: str = "text-embedding-3-small") -> chromadb.ClientAPI:
-    """Initialize the ChromaDB persistent client.
-    
-    Args:
-        chromadb_path: Path to ChromaDB data directory
-        api_key: OpenAI API key (reads from OPENAI_API_KEY env var if None)
-        model: OpenAI embedding model name
-    """
+def init_chromadb(chromadb_path: str | None = None) -> chromadb.ClientAPI:
+    """Initialize the ChromaDB persistent client."""
     global _client, _embedding_fn
     if _client is not None:
         return _client
@@ -41,11 +35,8 @@ def init_chromadb(chromadb_path: str | None = None, api_key: str | None = None, 
 
     logger.info("Connecting to ChromaDB at %s", chromadb_path)
     _client = chromadb.PersistentClient(path=chromadb_path)
-    _embedding_fn = OpenAIEmbeddingFunction(
-        api_key=api_key,
-        model_name=model,
-    )
-    logger.info("ChromaDB initialized with OpenAI embedding (%s)", model)
+    _embedding_fn = SentenceTransformerEmbeddingFunction(model_name=EMBEDDING_MODEL)
+    logger.info("ChromaDB initialized")
     return _client
 
 
@@ -56,7 +47,7 @@ def get_chromadb() -> chromadb.ClientAPI:
     return _client
 
 
-def get_embedding_fn() -> OpenAIEmbeddingFunction:
+def get_embedding_fn() -> SentenceTransformerEmbeddingFunction:
     """Get the shared embedding function."""
     if _embedding_fn is None:
         raise RuntimeError("ChromaDB not initialized. Call init_chromadb() first.")
