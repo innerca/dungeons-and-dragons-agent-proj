@@ -5,6 +5,12 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main, develop ]
+    # 跳过纯文档改动的 CI
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'asset/**'
+      - '.github/ISSUE_TEMPLATE/**'
 
 env:
   GO_VERSION: '1.26'
@@ -189,6 +195,16 @@ jobs:
     
     steps:
     - uses: actions/checkout@v4
+    
+    - name: Create .env file
+      run: |
+        cat > .env << EOF
+        DATABASE_URL=postgresql://sao:sao_dev_password@postgres:5432/sao_game
+        REDIS_URL=redis://redis:6379/0
+        JWT_SECRET=test-secret-key-for-ci
+        OPENAI_API_KEY=sk-test-key-for-ci
+        DEEPSEEK_API_KEY=sk-test-key-for-ci
+        EOF
     
     - name: Start services
       run: |
