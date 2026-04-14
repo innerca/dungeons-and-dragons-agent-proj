@@ -75,7 +75,21 @@ jobs:
       run: go build -v ./...
     
     - name: Run tests
-      run: go test -v -race -coverprofile=coverage.out ./...
+      run: |
+        go test -v -race -coverprofile=coverage.out ./...
+        echo ""
+        echo "=== Coverage Summary ==="
+        go tool cover -func=coverage.out | tail -1
+    
+    - name: Check coverage threshold
+      run: |
+        COVERAGE=$(go tool cover -func=coverage.out | grep "total:" | awk '{print $3}' | sed 's/%//')
+        echo "Current coverage: ${COVERAGE}%"
+        if [ "$(echo "$COVERAGE < 50" | bc)" -eq 1 ]; then
+          echo "::error::Coverage ${COVERAGE}% is below threshold 50%"
+          exit 1
+        fi
+        echo "Coverage check passed: ${COVERAGE}% >= 50%"
     
     - name: Upload coverage
       uses: codecov/codecov-action@v4
@@ -123,15 +137,52 @@ jobs:
       run: uv run mypy src/ --ignore-missing-imports || true
       continue-on-error: true
     
-    - name: Run tests
-      run: uv run pytest tests/ -v --tb=short
+    - name: Run tests with coverage
+      run: |
+        uv run pytest tests/ -v --tb=short \
+          --cov=src/gameserver \
+          --cov-branch \
+          --cov-report=term \
+          --cov-report=xml:coverage.xml \
+          --cov-report=html:htmlcov \
+          --junitxml=junit-results.xml
+    
+    - name: Check coverage threshold
+      run: |
+        COVERAGE=$(uv run pytest tests/ --cov=src/gameserver --cov-report=term 2>&1 | grep "TOTAL" | awk '{print $NF}' | sed 's/%//')
+        echo "Current coverage: ${COVERAGE}%"
+        if [ "$COVERAGE" -lt 40 ]; then
+          echo "::error::Coverage ${COVERAGE}% is below threshold 40%"
+          exit 1
+        fi
+        echo "Coverage check passed: ${COVERAGE}% >= 40%"
+    
+    - name: Upload coverage to Codecov
+      if: always()
+      uses: codecov/codecov-action@v4
+      with:
+        file: gameserver/coverage.xml
+        flags: gameserver
+        name: gameserver-coverage
+      continue-on-error: true
+    
+    - name: Upload coverage report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: gameserver-coverage-report
+        path: |
+          gameserver/htmlcov/
+          gameserver/coverage.xml
+        retention-days: 30
     
     - name: Upload test results
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: gameserver-test-results
-        path: gameserver/tests/
+        path: gameserver/junit-results.xml
+        retention-days: 30
 
   # Frontend (React) - Lint & Build
   frontend-test:
