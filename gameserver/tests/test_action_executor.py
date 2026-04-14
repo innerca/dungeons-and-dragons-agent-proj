@@ -1,6 +1,7 @@
 """Tests for action_executor module."""
 
 import json
+import uuid
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 
@@ -1478,3 +1479,555 @@ class TestHandleRollDice:
         assert result.success is True
         # The implementation might default to 1d20 if parsing fails
         assert "骰子" in result.description or "roll" in result.description.lower()
+
+
+# ====================================================================
+# 技能系统测试 (覆盖 174-194 行)
+# ====================================================================
+
+class TestSkillSystem:
+    """Tests for sword skill system."""
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.end_combat')
+    @patch('gameserver.game.action_executor.update_combat')
+    @patch('gameserver.game.action_executor.calculate_counter_attack')
+    @patch('gameserver.game.action_executor.get_combat')
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_attack_unknown_skill(self, mock_pg, mock_get, mock_counter, mock_update, mock_end, executor):
+        """使用未知剑技时失败."""
+        # Given: 不存在的剑技 ID
+        mock_pool = AsyncMock()
+        mock_pool.fetchrow = AsyncMock(return_value=None)  # 技能不存在
+        mock_pg.return_value = mock_pool
+        
+        state = {
+            "current_hp": 100,
+            "stat_dex": 10,
+            "stat_luk": 10,
+            "stat_agi": 10,
+            "stat_str": 10,
+            "level": 5,
+        }
+        
+        # When: 使用未知剑技攻击
+        result = await executor._handle_attack(
+            player_id="test-player",
+            state=state,
+            args={"target": "goblin", "skill_id": "unknown_skill"},
+            trace_id="test-trace"
+        )
+        
+        # Then: 应该失败
+        assert result.success is False
+        assert "未知剑技" in result.error
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.end_combat')
+    @patch('gameserver.game.action_executor.update_combat')
+    @patch('gameserver.game.action_executor.calculate_counter_attack')
+    @patch('gameserver.game.action_executor.get_combat')
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_attack_skill_level_insufficient(self, mock_pg, mock_get, mock_counter, mock_update, mock_end, executor):
+        """剑技等级不足时失败."""
+        # Given: 高等级剑技，低等级玩家
+        mock_skill = MagicMock()
+        mock_skill.__getitem__ = lambda s, key: {
+            "id": "horizontal_square",
+            "name": "水平四方斩",
+            "required_level": 10,
+            "damage_multiplier": 2.5,
+            "hit_count": 4,
+            "cooldown_seconds": 30,
+        }[key]
+        
+        mock_pool = AsyncMock()
+        mock_pool.fetchrow = AsyncMock(return_value=mock_skill)
+        mock_pg.return_value = mock_pool
+        
+        state = {
+            "current_hp": 100,
+            "stat_dex": 10,
+            "stat_luk": 10,
+            "stat_agi": 10,
+            "stat_str": 10,
+            "level": 5,  # 等级不足
+        }
+        
+        # When: 使用高等级剑技
+        result = await executor._handle_attack(
+            player_id="test-player",
+            state=state,
+            args={"target": "goblin", "skill_id": "horizontal_square"},
+            trace_id="test-trace"
+        )
+        
+        # Then: 应该失败
+        assert result.success is False
+        assert "等级不足" in result.error
+        assert "水平四方斩" in result.error
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.end_combat')
+    @patch('gameserver.game.action_executor.update_combat')
+    @patch('gameserver.game.action_executor.calculate_counter_attack')
+    @patch('gameserver.game.action_executor.get_combat')
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_attack_with_skill_success(self, mock_pg, mock_get, mock_counter, mock_update, mock_end, executor):
+        """成功使用剑技攻击."""
+        # Given: 有效的剑技和战斗状态
+        mock_skill = MagicMock()
+        mock_skill.__getitem__ = lambda s, key: {
+            "id": "horizontal",
+            "name": "水平斩击",
+            "required_level": 1,
+            "damage_multiplier": 1.5,
+            "hit_count": 1,
+            "cooldown_seconds": 10,
+        }[key]
+        
+        mock_monster = MagicMock()
+        mock_monster.ac = 10
+        mock_monster.hp = 50
+        mock_monster.max_hp = 50
+        mock_monster.name = "Test Monster"
+        mock_monster.monster_id = "test-123"
+        mock_monster.defense = 5
+        mock_monster.is_dead = False
+        
+        mock_session = MagicMock()
+        mock_session.monster = mock_monster
+        mock_session.round_number = 1
+        
+        mock_pool = AsyncMock()
+        mock_pool.fetchrow = AsyncMock(side_effect=[
+            mock_skill,  # 技能查询
+            None,  # 装备查询（无装备）
+        ])
+        
+        mock_pg.return_value = mock_pool
+        mock_get.return_value = mock_session
+        
+        mock_counter.return_value = MagicMock(
+            hits=False,
+            damage=0,
+            description="怪物未反击"
+        )
+        
+        state = {
+            "current_hp": 100,
+            "stat_dex": 14,  # +2 mod
+            "stat_luk": 10,
+            "stat_agi": 12,
+            "stat_str": 16,  # +3 mod
+            "level": 5,
+            "character_id": str(uuid.uuid4()),
+        }
+        
+        # When: 使用剑技攻击
+        result = await executor._handle_attack(
+            player_id="test-player",
+            state=state,
+            args={"target": "test-123", "skill_id": "horizontal"},
+            trace_id="test-trace"
+        )
+        
+        # Then: 应该成功
+        assert result.success is True
+        assert "水平斩击" in result.description
+        # skill_used 可能不在 details 中，取决于实现
+        assert "skill_used" in result.details or result.details.get("hit") is not None
+
+
+# ====================================================================
+# 交易功能测试 (覆盖 678-729 行)
+# ====================================================================
+
+class TestTradeSystem:
+    """Tests for trade system."""
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.get_pg')
+    @patch('gameserver.game.action_executor.state_service')
+    async def test_handle_trade_buy_success(self, mock_state, mock_pg, executor):
+        """成功购买物品."""
+        # Given: 玩家有足够珂尔
+        mock_item = MagicMock()
+        mock_item.__getitem__ = lambda s, key: {
+            "id": "potion_hp_small",
+            "name": "小型回复药水",
+            "base_price": 50,
+            "weapon_durability": None,
+        }[key]
+        
+        mock_pool = AsyncMock()
+        mock_pool.fetchrow = AsyncMock(return_value=mock_item)
+        mock_pool.execute = AsyncMock()
+        mock_pg.return_value = mock_pool
+        
+        mock_state.save_player_state = AsyncMock()
+        
+        state = {
+            "col": 200,
+            "character_id": str(uuid.uuid4()),
+        }
+        
+        # When: 购买物品
+        result = await executor._handle_trade(
+            player_id="test-player",
+            state=state,
+            args={"npc_id": "merchant_01", "action": "buy", "item_id": "potion_hp_small", "quantity": 2},
+            trace_id="test-trace"
+        )
+        
+        # Then: 购买成功
+        assert result.success is True
+        assert "购买了" in result.description
+        assert "小型回复药水" in result.description
+        assert result.state_changes["col"] == 100  # 200 - 100
+        mock_state.save_player_state.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_handle_trade_buy_insufficient_col(self, mock_pg, executor):
+        """珂尔不足时购买失败."""
+        # Given: 玩家珂尔不足
+        mock_item = MagicMock()
+        mock_item.__getitem__ = lambda s, key: {
+            "id": "sword_iron",
+            "name": "铁剑",
+            "base_price": 500,
+            "weapon_durability": 100,
+        }[key]
+        
+        mock_pool = AsyncMock()
+        mock_pool.fetchrow = AsyncMock(return_value=mock_item)
+        mock_pg.return_value = mock_pool
+        
+        state = {
+            "col": 100,  # 不够
+            "character_id": str(uuid.uuid4()),
+        }
+        
+        # When: 尝试购买
+        result = await executor._handle_trade(
+            player_id="test-player",
+            state=state,
+            args={"npc_id": "merchant_01", "action": "buy", "item_id": "sword_iron", "quantity": 1},
+            trace_id="test-trace"
+        )
+        
+        # Then: 应该失败
+        assert result.success is False
+        assert "珂尔不足" in result.error
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_handle_trade_unknown_item(self, mock_pg, executor):
+        """交易未知物品时失败."""
+        # Given: 不存在的物品
+        mock_pool = AsyncMock()
+        mock_pool.fetchrow = AsyncMock(return_value=None)
+        mock_pg.return_value = mock_pool
+        
+        state = {"col": 1000}
+        
+        # When: 交易未知物品
+        result = await executor._handle_trade(
+            player_id="test-player",
+            state=state,
+            args={"npc_id": "merchant_01", "action": "buy", "item_id": "nonexistent", "quantity": 1},
+            trace_id="test-trace"
+        )
+        
+        # Then: 应该失败
+        assert result.success is False
+        assert "未知物品" in result.error
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.get_pg')
+    @patch('gameserver.game.action_executor.state_service')
+    @patch('gameserver.game.action_executor.get_settings')
+    async def test_handle_trade_sell_success(self, mock_settings, mock_state, mock_pg, executor):
+        """成功出售物品."""
+        # Given: 玩家出售物品
+        mock_item = MagicMock()
+        mock_item.__getitem__ = lambda s, key: {
+            "id": "wolf_pelt",
+            "name": "狼皮",
+            "base_price": 100,
+            "weapon_durability": None,
+        }[key]
+        
+        mock_settings_obj = MagicMock()
+        mock_settings_obj.game.economy.npc_buy_rate = 0.5
+        mock_settings.return_value = mock_settings_obj
+        
+        mock_pool = AsyncMock()
+        mock_pool.fetchrow = AsyncMock(return_value=mock_item)
+        mock_pool.execute = AsyncMock()
+        mock_pg.return_value = mock_pool
+        
+        mock_state.save_player_state = AsyncMock()
+        
+        state = {
+            "col": 50,
+            "character_id": str(uuid.uuid4()),
+        }
+        
+        # When: 出售物品
+        result = await executor._handle_trade(
+            player_id="test-player",
+            state=state,
+            args={"npc_id": "merchant_01", "action": "sell", "item_id": "wolf_pelt", "quantity": 3},
+            trace_id="test-trace"
+        )
+        
+        # Then: 出售成功
+        assert result.success is True
+        assert "出售" in result.description
+        assert result.state_changes["col"] == 200  # 50 + 150 (300 * 0.5)
+
+
+# ====================================================================
+# 装备功能测试 (覆盖 920-989 行)
+# ====================================================================
+
+class TestEquipItem:
+    """Tests for equip item functionality."""
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_handle_equip_item_no_character(self, mock_pg, executor):
+        """未创建角色时装备失败."""
+        # Given: 没有 character_id
+        state = {"level": 5}
+        
+        # When: 尝试装备物品
+        result = await executor._handle_equip_item(
+            player_id="test-player",
+            state=state,
+            args={"item_id": "sword_iron", "slot": "main_hand"},
+            trace_id="test-trace"
+        )
+        
+        # Then: 应该失败
+        assert result.success is False
+        assert "未创建角色" in result.error
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_handle_equip_item_not_in_inventory(self, mock_pg, executor):
+        """背包中没有物品时装备失败."""
+        # Given: 物品不在背包中
+        mock_pool = AsyncMock()
+        mock_pool.fetchrow = AsyncMock(return_value=None)
+        mock_pg.return_value = mock_pool
+        
+        state = {"character_id": str(uuid.uuid4())}
+        
+        # When: 尝试装备不存在的物品
+        result = await executor._handle_equip_item(
+            player_id="test-player",
+            state=state,
+            args={"item_id": "sword_legendary", "slot": "main_hand"},
+            trace_id="test-trace"
+        )
+        
+        # Then: 应该失败
+        assert result.success is False
+        assert "背包中没有" in result.error
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_handle_equip_item_already_equipped(self, mock_pg, executor):
+        """物品已装备时失败."""
+        # Given: 物品已经装备
+        mock_inv = MagicMock()
+        mock_inv.__getitem__ = lambda s, key: {
+            "inv_id": 123,
+            "is_equipped": True,
+            "equipped_slot": "main_hand",
+            "name": "铁剑",
+            "item_type": "weapon",
+            "weapon_atk": 15,
+            "armor_defense": None,
+        }[key]
+        
+        mock_pool = AsyncMock()
+        mock_pool.fetchrow = AsyncMock(return_value=mock_inv)
+        mock_pg.return_value = mock_pool
+        
+        state = {"character_id": str(uuid.uuid4())}
+        
+        # When: 尝试装备已装备的物品
+        result = await executor._handle_equip_item(
+            player_id="test-player",
+            state=state,
+            args={"item_id": "sword_iron"},
+            trace_id="test-trace"
+        )
+        
+        # Then: 应该失败
+        assert result.success is False
+        assert "已在装备中" in result.error
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_handle_equip_item_success_weapon(self, mock_pg, executor):
+        """成功装备武器."""
+        # Given: 背包中有未装备的武器
+        mock_inv = MagicMock()
+        mock_inv.__getitem__ = lambda s, key: {
+            "inv_id": 456,
+            "is_equipped": False,
+            "equipped_slot": None,
+            "name": "钢剑",
+            "item_type": "weapon",
+            "weapon_atk": 25,
+            "armor_defense": None,
+        }[key]
+        
+        mock_pool = AsyncMock()
+        mock_pool.fetchrow = AsyncMock(return_value=mock_inv)
+        mock_pool.execute = AsyncMock()
+        mock_pg.return_value = mock_pool
+        
+        state = {"character_id": str(uuid.uuid4())}
+        
+        # When: 装备武器
+        result = await executor._handle_equip_item(
+            player_id="test-player",
+            state=state,
+            args={"item_id": "sword_steel"},
+            trace_id="test-trace"
+        )
+        
+        # Then: 装备成功
+        assert result.success is True
+        assert "钢剑" in result.description
+        assert "ATK 25" in result.description
+        assert mock_pool.execute.call_count == 2  # 卸装 + 装备
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.get_pg')
+    async def test_handle_equip_item_success_armor(self, mock_pg, executor):
+        """成功装备防具."""
+        # Given: 背包中有未装备的防具
+        mock_inv = MagicMock()
+        mock_inv.__getitem__ = lambda s, key: {
+            "inv_id": 789,
+            "is_equipped": False,
+            "equipped_slot": None,
+            "name": "皮革铠甲",
+            "item_type": "armor_body",
+            "weapon_atk": None,
+            "armor_defense": 10,
+        }[key]
+        
+        mock_pool = AsyncMock()
+        mock_pool.fetchrow = AsyncMock(return_value=mock_inv)
+        mock_pool.execute = AsyncMock()
+        mock_pg.return_value = mock_pool
+        
+        state = {"character_id": str(uuid.uuid4())}
+        
+        # When: 装备防具
+        result = await executor._handle_equip_item(
+            player_id="test-player",
+            state=state,
+            args={"item_id": "armor_leather"},
+            trace_id="test-trace"
+        )
+        
+        # Then: 装备成功
+        assert result.success is True
+        assert "皮革铠甲" in result.description
+        assert "DEF 10" in result.description
+
+
+# ====================================================================
+# 传送水晶测试 (覆盖 575-595 行)
+# ====================================================================
+
+class TestTeleportCrystal:
+    """Tests for teleport crystal functionality."""
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.state_service')
+    @patch('gameserver.game.action_executor.get_settings')
+    async def test_handle_use_teleport_crystal_success(self, mock_settings, mock_state, executor):
+        """成功使用传送水晶."""
+        # Given: 有效的楼层
+        mock_settings_obj = MagicMock()
+        mock_settings_obj.game.floor.max_floor = 10
+        mock_settings_obj.game.floor.floor_areas = {
+            1: "起始之城",
+            5: "第五层主街区",
+        }
+        mock_settings.return_value = mock_settings_obj
+        
+        mock_state.save_player_state = AsyncMock()
+        
+        state = {"current_floor": 1, "current_area": "起始之城"}
+        
+        # When: 传送到第5层
+        result = await executor._handle_use_teleport_crystal(
+            player_id="test-player",
+            state=state,
+            args={"floor": 5},
+            trace_id="test-trace"
+        )
+        
+        # Then: 传送成功
+        assert result.success is True
+        assert "第五层主街区" in result.description
+        assert result.state_changes["current_floor"] == 5
+        assert result.state_changes["current_area"] == "第五层主街区"
+        assert result.state_changes["current_location"] == "转移门广场"
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.get_settings')
+    async def test_handle_use_teleport_crystal_invalid_floor(self, mock_settings, executor):
+        """传送到无效楼层时失败."""
+        # Given: 超出范围的楼层
+        mock_settings_obj = MagicMock()
+        mock_settings_obj.game.floor.max_floor = 10
+        mock_settings.return_value = mock_settings_obj
+        
+        state = {"current_floor": 1}
+        
+        # When: 传送到第15层（超出范围）
+        result = await executor._handle_use_teleport_crystal(
+            player_id="test-player",
+            state=state,
+            args={"floor": 15},
+            trace_id="test-trace"
+        )
+        
+        # Then: 应该失败
+        assert result.success is False
+        assert "无法传送" in result.error
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.get_settings')
+    async def test_handle_use_teleport_crystal_floor_zero(self, mock_settings, executor):
+        """传送到第0层时失败."""
+        # Given: 楼层为0
+        mock_settings_obj = MagicMock()
+        mock_settings_obj.game.floor.max_floor = 10
+        mock_settings.return_value = mock_settings_obj
+        
+        state = {"current_floor": 1}
+        
+        # When: 传送到第0层
+        result = await executor._handle_use_teleport_crystal(
+            player_id="test-player",
+            state=state,
+            args={"floor": 0},
+            trace_id="test-trace"
+        )
+        
+        # Then: 应该失败
+        assert result.success is False
+        assert "无法传送" in result.error
