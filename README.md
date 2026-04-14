@@ -625,4 +625,6 @@ make verify-vectordb
 
 ---
 
-This project and all its historical commits are licensed under CC BY-NC-ND 4.0.
+**Copyright (C) 2026 Xing Mingcheng**
+
+This project and all its historical commits are licensed under [CC BY-NC-ND 4.0](LICENSE) (Attribution-NonCommercial-NoDerivatives 4.0 International).
