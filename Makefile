@@ -7,7 +7,7 @@ GOPATH_BIN := $(shell go env GOPATH)/bin
 export GO111MODULE=on
 export PATH := $(GOPATH_BIN):$(PATH)
 
-.PHONY: proto-gen proto-go proto-py clean dev dev-down dev-logs help ingest-novels verify-vectordb start stop db-init test test-gateway test-gameserver test-frontend
+.PHONY: proto-gen proto-go proto-py clean dev dev-down dev-logs help ingest-novels verify-vectordb start stop db-init test test-gateway test-gameserver test-frontend clean-branches
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
@@ -117,3 +117,8 @@ ingest-novels: ## Ingest SAO novels into ChromaDB
 
 verify-vectordb: ## Verify ChromaDB ingestion results
 	cd gameserver && HF_ENDPOINT=https://hf-mirror.com uv run python -m scripts.verify_vectordb
+
+# --- Git maintenance ---
+
+clean-branches: ## Clean up merged and stale branches
+	@bash scripts/clean-branches.sh
