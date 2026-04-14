@@ -17,6 +17,8 @@ class TestRoll:
 
     def test_roll_basic(self):
         """单次掷骰返回格式正确、范围在 1-20."""
+        # Given: A standard d20 roll with no modifier
+        # When: Rolling the dice
         result = _roll(sides=20, count=1, modifier=0)
 
         assert "rolls" in result
@@ -32,6 +34,8 @@ class TestRoll:
 
     def test_roll_with_modifier(self):
         """修正值正确加入."""
+        # Given: A d20 roll with +5 modifier
+        # When: Rolling the dice
         result = _roll(sides=20, count=1, modifier=5)
 
         assert result["modifier"] == 5
@@ -39,6 +43,8 @@ class TestRoll:
 
     def test_roll_multiple_dice(self):
         """多骰子掷骰."""
+        # Given: Rolling 3d6 (three six-sided dice)
+        # When: Rolling the dice
         result = _roll(sides=6, count=3, modifier=0)
 
         assert len(result["rolls"]) == 3
@@ -48,7 +54,10 @@ class TestRoll:
 
     def test_roll_natural_max(self):
         """natural_max 为 True 当掷出最大值."""
-        # Mock by testing many rolls
+        # TODO: This is a probabilistic test - may occasionally fail due to randomness
+        # Given: A d20 dice roll
+        # When: Rolling 100 times to find a natural 20
+        # Then: natural_max should be True when 20 is rolled
         found_max = False
         for _ in range(100):
             result = _roll(sides=20, count=1, modifier=0)
@@ -61,6 +70,10 @@ class TestRoll:
 
     def test_roll_natural_1(self):
         """natural_1 为 True 当掷出 1."""
+        # TODO: This is a probabilistic test - may occasionally fail due to randomness
+        # Given: A d20 dice roll
+        # When: Rolling 100 times to find a natural 1
+        # Then: natural_1 should be True when 1 is rolled
         found_1 = False
         for _ in range(100):
             result = _roll(sides=20, count=1, modifier=0)
@@ -75,14 +88,23 @@ class TestStatMod:
 
     def test_stat_mod_calculation_10(self):
         """属性值 10→0."""
+        # Given: A stat value of 10 (baseline)
+        # When: Calculating the modifier
+        # Then: It should be 0
         assert _stat_mod(10) == 0
 
     def test_stat_mod_calculation_16(self):
         """属性值 16→+3."""
+        # Given: A stat value of 16
+        # When: Calculating the modifier
+        # Then: It should be +3
         assert _stat_mod(16) == 3
 
     def test_stat_mod_calculation_8(self):
         """属性值 8→-1."""
+        # Given: A stat value of 8
+        # When: Calculating the modifier
+        # Then: It should be -1
         assert _stat_mod(8) == -1
 
     def test_stat_mod_calculation_12(self):
@@ -153,6 +175,7 @@ class TestActionResult:
 
     def test_action_result_to_tool_result_success(self):
         """序列化为 JSON 格式正确 - 成功."""
+        # Given: A successful action result with details
         result = ActionResult(
             success=True,
             action_type="attack",
@@ -169,6 +192,7 @@ class TestActionResult:
 
     def test_action_result_to_tool_result_failure(self):
         """序列化为 JSON 格式正确 - 失败."""
+        # Given: A failed action result with error message
         result = ActionResult(
             success=False,
             action_type="attack",
@@ -182,6 +206,7 @@ class TestActionResult:
 
     def test_action_result_empty_details(self):
         """序列化为 JSON 格式正确 - 空 details."""
+        # Given: A successful action result with no details
         result = ActionResult(
             success=True,
             action_type="defend",

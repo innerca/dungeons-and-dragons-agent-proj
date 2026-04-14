@@ -81,7 +81,9 @@ def main():
     print("\n  Per-volume stats:")
     for vol in sorted(volume_stats.keys()):
         stats = volume_stats[vol]
-        vol_cfg = next(c for c in VOLUME_CONFIG if c["volume"] == vol)
+        vol_cfg = next((c for c in VOLUME_CONFIG if c["volume"] == vol), None)
+        if not vol_cfg:
+            continue
         story_names = ", ".join(s["title"] for s in vol_cfg["stories"])
         print(f"    Vol {vol}: {stats['sections']} sections, {stats['chunks']} chunks ({story_names})")
 
@@ -95,8 +97,9 @@ def main():
     try:
         client.delete_collection(COLLECTION_NAME)
         print(f"  Deleted existing collection '{COLLECTION_NAME}'")
-    except Exception:
-        pass
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.debug("Collection deletion skipped (may not exist): %s", e)
 
     embedding_fn = SentenceTransformerEmbeddingFunction(
         model_name=EMBEDDING_MODEL,

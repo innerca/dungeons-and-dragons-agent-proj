@@ -137,6 +137,16 @@ async def update_character(player_id: str, **updates) -> None:
     if not updates:
         return
     pool = get_pg()
-    sets = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(updates))
+    # Allowlist of valid column names to prevent SQL injection
+    valid_columns = {
+        "name", "max_hp", "current_hp", "stat_str", "stat_agi", "stat_vit",
+        "stat_int", "stat_dex", "stat_luk", "level", "experience", "exp_to_next",
+        "stat_points_available", "col", "current_floor", "current_area", "current_location",
+    }
+    # Filter and validate field names
+    filtered_updates = {k: v for k, v in updates.items() if k in valid_columns}
+    if not filtered_updates:
+        return
+    sets = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(filtered_updates))
     query = f"UPDATE player_characters SET {sets}, updated_at = now() WHERE player_id = $1"
-    await pool.execute(query, uuid.UUID(player_id), *updates.values())
+    await pool.execute(query, uuid.UUID(player_id), *filtered_updates.values())

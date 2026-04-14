@@ -34,11 +34,10 @@ def get_pg() -> asyncpg.Pool:
         logger.error("PostgreSQL pool not initialized")
         raise RuntimeError("PostgreSQL pool not initialized. Call init_pg() first.")
     # Log pool status at debug level
-    if _pool is not None:
-        logger.debug(
-            "PostgreSQL pool status: size=%d, min=%d, max=%d",
-            _pool.get_size(), _pool.get_min_size(), _pool.get_max_size()
-        )
+    logger.debug(
+        "PostgreSQL pool status: size=%d, min=%d, max=%d",
+        _pool.get_size(), _pool.get_min_size(), _pool.get_max_size()
+    )
     return _pool
 
 

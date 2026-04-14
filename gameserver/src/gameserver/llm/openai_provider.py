@@ -98,8 +98,12 @@ class OpenAICompatibleProvider(LLMProvider):
             
             # Extract token usage
             usage = response.usage
-            input_tokens = usage.prompt_tokens if usage else 0
-            output_tokens = usage.completion_tokens if usage else 0
+            if usage:
+                input_tokens = usage.prompt_tokens
+                output_tokens = usage.completion_tokens
+            else:
+                input_tokens = 0
+                output_tokens = 0
             
             logger.info(
                 "trace=%s step=llm_call provider=openai model=%s input_tokens=%d output_tokens=%d latency_ms=%.1f",

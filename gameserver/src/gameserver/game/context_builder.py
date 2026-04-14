@@ -105,7 +105,11 @@ async def _format_quest_snapshot(player_id: str) -> str | None:
     try:
         from gameserver.game.quest_service import get_active_quests
         quests = await get_active_quests(player_id)
-    except Exception:
+    except (ImportError, RuntimeError, ConnectionError) as e:
+        logger.debug("Failed to load quest snapshot: %s", e)
+        return None
+    except Exception as e:
+        logger.warning("Unexpected error loading quest snapshot: %s", e)
         return None
 
     if not quests:
@@ -133,7 +137,11 @@ async def _format_combat_snapshot(player_id: str) -> str | None:
     try:
         from gameserver.game.combat_state import get_combat
         session = await get_combat(player_id)
-    except Exception:
+    except (ImportError, RuntimeError, ConnectionError) as e:
+        logger.debug("Failed to load combat snapshot: %s", e)
+        return None
+    except Exception as e:
+        logger.warning("Unexpected error loading combat snapshot: %s", e)
         return None
 
     if not session:

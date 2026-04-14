@@ -161,7 +161,7 @@ class ActionExecutor:
         if hp <= 0:
             return ActionResult(success=False, action_type="attack", error="HP 为 0，无法行动")
 
-        target = args.get("target", "未知目标")
+        target_monster_name = args.get("target", "未知目标")
         skill_id = args.get("skill_id")
 
         # Load skill data if specified
@@ -200,15 +200,15 @@ class ActionExecutor:
             pool = get_pg()
             monster_def = await pool.fetchrow(
                 "SELECT * FROM monster_definitions WHERE name = $1 OR name_en = $1 LIMIT 1",
-                target,
+                target_monster_name,
             )
             if monster_def:
                 session = await start_combat(player_id, dict(monster_def), trace_id=trace_id)
             else:
                 gm = combat_cfg.generic_monster
                 session = await start_combat(player_id, {
-                    "id": f"generic_{target}",
-                    "name": target,
+                    "id": f"generic_{target_monster_name}",
+                    "name": target_monster_name,
                     "monster_type": "unknown",
                     "hp": gm["hp"], "atk": gm["atk"],
                     "defense": gm["defense"], "ac": gm["ac"],
@@ -218,8 +218,14 @@ class ActionExecutor:
         monster = session.monster
 
         # Step 4: Computation
-        dex_mod = _stat_mod(state.get("stat_dex", "10"))
-        luk = int(state.get("stat_luk", "10"))
+        dex_val = state.get("stat_dex", 10)
+        luk_val = state.get("stat_luk", 10)
+        if not isinstance(dex_val, (int, float)):
+            dex_val = 10
+        if not isinstance(luk_val, (int, float)):
+            luk_val = 10
+        dex_mod = _stat_mod(int(dex_val))
+        luk = int(luk_val)
         
         # Attack roll (d20 + DEX mod) vs monster AC
         attack_roll = _roll(20, 1, dex_mod)
@@ -243,10 +249,6 @@ class ActionExecutor:
                     weapon_atk = equipped["weapon_atk"]
             except Exception:
                 pass
-
-        # Attack roll (d20 + DEX mod) vs monster AC
-        attack_roll = _roll(20, 1, dex_mod)
-        hit = attack_roll["total"] >= monster.ac
 
         total_damage = 0
         hit_details = []
@@ -284,8 +286,6 @@ class ActionExecutor:
             description += f"（{monster.name} HP: {monster.hp}/{monster.max_hp}）"
         else:
             description += "未命中。"
-
-        state_changes = {}
 
         # Step 5: State Write
         state_changes = {}
@@ -330,6 +330,7 @@ class ActionExecutor:
             player_def = 0
             if char_id:
                 try:
+                    pool = get_pg()
                     armor = await pool.fetchrow(
                         """SELECT id2.armor_defense FROM character_inventory ci
                            JOIN item_definitions id2 ON ci.item_def_id = id2.id

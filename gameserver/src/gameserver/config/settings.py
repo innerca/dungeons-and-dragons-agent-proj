@@ -12,6 +12,8 @@ def _resolve_env_vars(value: str) -> str:
     """Replace ${VAR_NAME} patterns with environment variable values."""
     pattern = re.compile(r"\$\{(\w+)\}")
     def replacer(match):
+        if match is None:
+            return ""
         var_name = match.group(1)
         return os.environ.get(var_name, "")
     return pattern.sub(replacer, value)
@@ -200,8 +202,13 @@ class Settings:
                 Path(__file__).parent.parent.parent.parent / "config" / "config.yaml"
             )
 
-        with open(config_path, "r") as f:
-            raw = yaml.safe_load(f)
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                raw = yaml.safe_load(f)
+        except FileNotFoundError:
+            raise RuntimeError(f"Config file not found: {config_path}")
+        except yaml.YAMLError as e:
+            raise RuntimeError(f"Failed to parse config file: {e}")
 
         raw = _resolve_dict(raw)
 

@@ -110,11 +110,18 @@ def query_novels(
             trace_id, len(output), top_score, latency_ms
         )
         return output
-    except Exception as e:
+    except (ValueError, TypeError, RuntimeError) as e:
         latency_ms = (time.time() - start_time) * 1000
         logger.error(
             "trace=%s step=rag_retrieve collection=novels status=error error=%s latency_ms=%.1f",
             trace_id, e, latency_ms
+        )
+        raise
+    except Exception as e:
+        latency_ms = (time.time() - start_time) * 1000
+        logger.exception(
+            "trace=%s step=rag_retrieve collection=novels status=unexpected_error latency_ms=%.1f",
+            trace_id, latency_ms
         )
         raise
 
@@ -178,11 +185,18 @@ def query_entities(
             trace_id, entity_type or "all", len(output), top_score, latency_ms
         )
         return output
-    except Exception as e:
+    except (ValueError, TypeError, RuntimeError) as e:
         latency_ms = (time.time() - start_time) * 1000
         logger.error(
             "trace=%s step=rag_retrieve collection=entities status=error error=%s latency_ms=%.1f",
             trace_id, e, latency_ms
+        )
+        raise
+    except Exception as e:
+        latency_ms = (time.time() - start_time) * 1000
+        logger.exception(
+            "trace=%s step=rag_retrieve collection=entities status=unexpected_error latency_ms=%.1f",
+            trace_id, latency_ms
         )
         raise
 

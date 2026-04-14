@@ -110,6 +110,9 @@ async def _check_prerequisites(
     # Required world flags
     required_flags = prereqs.get("required_flags", {})
     if required_flags:
+        if not isinstance(required_flags, dict):
+            logger.warning("Invalid required_flags format for player %s: %s", player_id[:8], required_flags)
+            return False
         pool = get_pg()
         for flag_key, expected in required_flags.items():
             row = await pool.fetchrow(
