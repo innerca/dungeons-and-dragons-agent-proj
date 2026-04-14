@@ -263,3 +263,208 @@ class TestGetRagEntityType:
         """EXPLORATION 场景返回 None."""
         entity_type = get_rag_entity_type(SceneType.EXPLORATION)
         assert entity_type is None
+
+    def test_get_rag_entity_type_rest_returns_none(self):
+        """REST 场景返回 None."""
+        entity_type = get_rag_entity_type(SceneType.REST)
+        assert entity_type is None
+
+    def test_get_rag_entity_type_general_returns_none(self):
+        """GENERAL 场景返回 None."""
+        entity_type = get_rag_entity_type(SceneType.GENERAL)
+        assert entity_type is None
+
+
+class TestClassifySceneEdgeCases:
+    """Tests for classify_scene edge cases."""
+
+    def test_classify_scene_case_insensitive(self):
+        """关键词匹配不区分大小写."""
+        # Given: 大写关键词
+        message = "我要攻击 BOSS"
+        
+        # When: 分类场景
+        scene = classify_scene(message)
+        
+        # Then: 应该识别为 COMBAT
+        assert scene == SceneType.COMBAT
+
+    def test_classify_scene_multiple_keywords(self):
+        """多个关键词匹配时选择分数最高的."""
+        # Given: 同时包含 combat 和 social 关键词
+        message = "攻击怪物并购买情报"
+        
+        # When: 分类场景
+        scene = classify_scene(message)
+        
+        # Then: 应该选择分数更高的（combat: 2个词 vs social: 1个词）
+        assert scene == SceneType.COMBAT
+
+    def test_classify_scene_with_custom_keywords(self):
+        """使用自定义关键词映射."""
+        # Given: 自定义关键词
+        custom_keywords = {
+            "combat": ["fight", "battle"],
+            "social": ["chat", "talk"],
+        }
+        message = "Let's fight"
+        
+        # When: 分类场景
+        scene = classify_scene(message, scene_keywords=custom_keywords)
+        
+        # Then: 应该使用自定义关键词
+        assert scene == SceneType.COMBAT
+
+    def test_classify_scene_partial_keyword_match(self):
+        """部分关键词匹配."""
+        # Given: 只包含一个 combat 关键词
+        message = "我准备战斗"
+        
+        # When: 分类场景
+        scene = classify_scene(message)
+        
+        # Then: 应该识别为 COMBAT
+        assert scene == SceneType.COMBAT
+
+    def test_classify_scene_no_match_returns_general(self):
+        """没有匹配时返回 GENERAL."""
+        # Given: 无关消息
+        message = "今天天气真好"
+        
+        # When: 分类场景
+        scene = classify_scene(message)
+        
+        # Then: 返回 GENERAL
+        assert scene == SceneType.GENERAL
+
+
+class TestPruneToolsEdgeCases:
+    """Tests for prune_tools edge cases."""
+
+    def test_prune_tools_empty_list(self):
+        """空工具列表返回空."""
+        # Given: 空工具列表
+        all_tools = []
+        
+        # When: 裁剪工具
+        pruned = prune_tools(all_tools, SceneType.COMBAT)
+        
+        # Then: 返回空列表
+        assert pruned == []
+
+    def test_prune_tools_no_match(self):
+        """没有匹配的工具时返回空."""
+        # Given: 工具列表不包含场景相关工具
+        all_tools = [
+            {"function": {"name": "unknown_tool"}},
+        ]
+        
+        # When: 裁剪工具
+        pruned = prune_tools(all_tools, SceneType.COMBAT)
+        
+        # Then: 返回空列表
+        assert pruned == []
+
+    def test_prune_tools_all_match(self):
+        """所有工具都匹配时全部返回."""
+        # Given: 所有工具都属于 COMBAT 场景
+        all_tools = [
+            {"function": {"name": "attack"}},
+            {"function": {"name": "defend"}},
+        ]
+        
+        # When: 裁剪工具
+        pruned = prune_tools(all_tools, SceneType.COMBAT)
+        
+        # Then: 返回所有工具
+        assert len(pruned) == 2
+
+    def test_prune_tools_exploration_scene(self):
+        """EXPLORATION 场景裁剪正确."""
+        # Given: 混合工具列表
+        all_tools = [
+            {"function": {"name": "move_to"}},
+            {"function": {"name": "attack"}},
+            {"function": {"name": "enter_dungeon"}},
+        ]
+        
+        # When: 裁剪工具
+        pruned = prune_tools(all_tools, SceneType.EXPLORATION)
+        
+        # Then: 只返回 exploration 相关工具
+        assert len(pruned) == 2
+        tool_names = {t["function"]["name"] for t in pruned}
+        assert "move_to" in tool_names
+        assert "enter_dungeon" in tool_names
+        assert "attack" not in tool_names
+
+    def test_prune_tools_social_scene(self):
+        """SOCIAL 场景裁剪正确."""
+        # Given: 混合工具列表
+        all_tools = [
+            {"function": {"name": "talk_to_npc"}},
+            {"function": {"name": "attack"}},
+            {"function": {"name": "trade"}},
+        ]
+        
+        # When: 裁剪工具
+        pruned = prune_tools(all_tools, SceneType.SOCIAL)
+        
+        # Then: 只返回 social 相关工具
+        assert len(pruned) == 2
+        tool_names = {t["function"]["name"] for t in pruned}
+        assert "talk_to_npc" in tool_names
+        assert "trade" in tool_names
+        assert "attack" not in tool_names
+
+    def test_prune_tools_rest_scene(self):
+        """REST 场景裁剪正确."""
+        # Given: 混合工具列表
+        all_tools = [
+            {"function": {"name": "rest"}},
+            {"function": {"name": "attack"}},
+            {"function": {"name": "use_item"}},
+        ]
+        
+        # When: 裁剪工具
+        pruned = prune_tools(all_tools, SceneType.REST)
+        
+        # Then: 只返回 rest 相关工具
+        assert len(pruned) == 2
+        tool_names = {t["function"]["name"] for t in pruned}
+        assert "rest" in tool_names
+        assert "use_item" in tool_names
+        assert "attack" not in tool_names
+
+
+class TestToolGroupsCompleteness:
+    """Tests for TOOL_GROUPS completeness."""
+
+    def test_all_scenes_have_tool_groups(self):
+        """所有场景类型都有工具组定义."""
+        # Given: 所有场景类型
+        scenes = [SceneType.COMBAT, SceneType.EXPLORATION, SceneType.SOCIAL, SceneType.REST]
+        
+        # Then: 都应该有工具组
+        for scene in scenes:
+            assert scene in TOOL_GROUPS, f"{scene} 没有定义工具组"
+            assert len(TOOL_GROUPS[scene]) > 0, f"{scene} 的工具组为空"
+
+    def test_common_tools_in_all_groups(self):
+        """通用工具在所有场景中都可用."""
+        # Given: 通用工具
+        common_tools = {"check_status", "check_inventory"}
+        
+        # Then: 应该在所有场景工具组中
+        for scene, tools in TOOL_GROUPS.items():
+            for tool in common_tools:
+                assert tool in tools, f"{tool} 不在 {scene} 的工具组中"
+
+    def test_scene_specific_tools_not_shared(self):
+        """场景专属工具不应该出现在其他场景."""
+        # combat 专属工具不应该在 social 中
+        assert "attack" not in TOOL_GROUPS[SceneType.SOCIAL]
+        # social 专属工具不应该在 combat 中
+        assert "talk_to_npc" not in TOOL_GROUPS[SceneType.COMBAT]
+        # exploration 专属工具不应该在 rest 中
+        assert "move_to" not in TOOL_GROUPS[SceneType.REST]

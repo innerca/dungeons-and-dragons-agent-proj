@@ -3,9 +3,17 @@
 import json
 import uuid
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from gameserver.game import quest_service
+from gameserver.game.quest_service import (
+    get_active_quests,
+    get_quest_status,
+    accept_quest,
+    update_quest_progress,
+    check_quest_triggers,
+    _check_prerequisites,
+)
 
 
 class TestGetActiveQuests:
@@ -199,3 +207,301 @@ class TestCheckPrerequisites:
         prereqs = {"required_quests": ["quest_001"]}
         result = await quest_service._check_prerequisites(player_id, state, prereqs)
         assert result is False
+
+
+class TestAcceptQuest:
+    """Tests for accept_quest function."""
+
+    @pytest.mark.asyncio
+    async def test_accept_quest_success(self, mock_get_pg, player_id):
+        """成功接受任务."""
+        char_id = str(uuid.uuid4())
+        
+        # Setup mock character lookup
+        mock_char_row = MagicMock()
+        mock_char_row.__getitem__ = lambda s, key: {"id": uuid.UUID(char_id)}[key]
+        
+        # Setup mock quest row (available status)
+        mock_quest_row = MagicMock()
+        mock_quest_row.__getitem__ = lambda s, key: {
+            "status": "available",
+            "name": "击败哥布林",
+            "objectives_json": [
+                {"type": "kill", "target": "goblin", "count": 5, "desc": "哥布林"}
+            ],
+        }[key]
+
+        mock_get_pg.fetchrow = AsyncMock(side_effect=[
+            mock_char_row,  # Character lookup
+            mock_quest_row,  # Quest status
+        ])
+        mock_get_pg.execute = AsyncMock(return_value=None)
+
+        # Execute
+        result = await accept_quest(player_id, "quest_001")
+
+        # Verify
+        assert result["success"] is True
+        assert "击败哥布林" in result["message"]
+        assert result["quest_name"] == "击败哥布林"
+
+    @pytest.mark.asyncio
+    async def test_accept_quest_no_character(self, mock_get_pg, player_id):
+        """没有角色时失败."""
+        mock_get_pg.fetchrow = AsyncMock(return_value=None)
+
+        result = await accept_quest(player_id, "quest_001")
+
+        assert result["success"] is False
+        assert "未创建角色" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_accept_quest_not_unlocked(self, mock_get_pg, player_id):
+        """任务未解锁时失败."""
+        char_id = str(uuid.uuid4())
+        
+        mock_char_row = MagicMock()
+        mock_char_row.__getitem__ = lambda s, key: {"id": uuid.UUID(char_id)}[key]
+
+        mock_get_pg.fetchrow = AsyncMock(side_effect=[
+            mock_char_row,
+            None,  # Quest not found
+        ])
+
+        result = await accept_quest(player_id, "quest_001")
+
+        assert result["success"] is False
+        assert "未解锁" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_accept_quest_already_active(self, mock_get_pg, player_id):
+        """任务已在进行中时失败."""
+        char_id = str(uuid.uuid4())
+        
+        mock_char_row = MagicMock()
+        mock_char_row.__getitem__ = lambda s, key: {"id": uuid.UUID(char_id)}[key]
+        
+        mock_quest_row = MagicMock()
+        mock_quest_row.__getitem__ = lambda s, key: {
+            "status": "active",
+            "name": "击败哥布林",
+        }[key]
+
+        mock_get_pg.fetchrow = AsyncMock(side_effect=[
+            mock_char_row,
+            mock_quest_row,
+        ])
+
+        result = await accept_quest(player_id, "quest_001")
+
+        assert result["success"] is False
+        assert "已在进行中" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_accept_quest_already_completed(self, mock_get_pg, player_id):
+        """任务已完成时失败."""
+        char_id = str(uuid.uuid4())
+        
+        mock_char_row = MagicMock()
+        mock_char_row.__getitem__ = lambda s, key: {"id": uuid.UUID(char_id)}[key]
+        
+        mock_quest_row = MagicMock()
+        mock_quest_row.__getitem__ = lambda s, key: {
+            "status": "completed",
+            "name": "击败哥布林",
+        }[key]
+
+        mock_get_pg.fetchrow = AsyncMock(side_effect=[
+            mock_char_row,
+            mock_quest_row,
+        ])
+
+        result = await accept_quest(player_id, "quest_001")
+
+        assert result["success"] is False
+        assert "已完成" in result["message"]
+
+
+class TestQuestProgressEdgeCases:
+    """Tests for quest progress edge cases."""
+
+    @pytest.mark.asyncio
+    async def test_update_quest_progress_complete_objective(self, mock_get_pg, player_id):
+        """完成目标时进度正确更新."""
+        char_id = str(uuid.uuid4())
+        
+        mock_char_row = MagicMock()
+        mock_char_row.__getitem__ = lambda s, key: {"id": uuid.UUID(char_id)}[key]
+        
+        mock_quest_row = MagicMock()
+        mock_quest_row.__getitem__ = lambda s, key: {
+            "id": 1,
+            "quest_def_id": "quest_001",
+            "progress_json": {
+                "obj_0": {"current": 2, "required": 3, "completed": False, "type": "kill", "target": "wolf"}
+            },
+            "name": "击败野狼",
+            "objectives_json": [{"type": "kill", "target": "wolf", "count": 3}],
+            "rewards_json": {"exp": 100, "col": 50},
+        }[key]
+
+        mock_get_pg.fetchrow = AsyncMock(side_effect=[
+            mock_char_row,
+        ])
+        mock_get_pg.fetch = AsyncMock(return_value=[mock_quest_row])
+        mock_get_pg.execute = AsyncMock(return_value=None)
+
+        # Mock redis to avoid initialization error
+        with patch('gameserver.db.redis_client.get_redis') as mock_redis:
+            mock_redis.return_value = AsyncMock()
+            
+            # Execute: Kill 1 wolf (will complete objective)
+            messages = await update_quest_progress(
+                player_id, "kill", "wolf", 1
+            )
+
+            # Verify
+            assert len(messages) > 0
+            assert any("目标完成" in msg for msg in messages)
+
+    @pytest.mark.asyncio
+    async def test_update_quest_progress_partial_update(self, mock_get_pg, player_id):
+        """部分更新进度."""
+        char_id = str(uuid.uuid4())
+        
+        mock_char_row = MagicMock()
+        mock_char_row.__getitem__ = lambda s, key: {"id": uuid.UUID(char_id)}[key]
+        
+        mock_quest_row = MagicMock()
+        mock_quest_row.__getitem__ = lambda s, key: {
+            "id": 1,
+            "quest_def_id": "quest_001",
+            "progress_json": {
+                "obj_0": {"current": 0, "required": 3, "completed": False, "type": "kill", "target": "wolf"}
+            },
+            "name": "击败野狼",
+            "objectives_json": [{"type": "kill", "target": "wolf", "count": 3}],
+            "rewards_json": {},
+        }[key]
+
+        mock_get_pg.fetchrow = AsyncMock(side_effect=[
+            mock_char_row,
+        ])
+        mock_get_pg.fetch = AsyncMock(return_value=[mock_quest_row])
+        mock_get_pg.execute = AsyncMock(return_value=None)
+
+        # Execute: Kill 1 wolf (partial progress)
+        messages = await update_quest_progress(
+            player_id, "kill", "wolf", 1
+        )
+
+        # Verify
+        assert len(messages) > 0
+        assert any("1/3" in msg for msg in messages)
+
+    @pytest.mark.asyncio
+    async def test_update_quest_progress_wrong_target(self, mock_get_pg, player_id):
+        """击杀错误目标不更新进度."""
+        char_id = str(uuid.uuid4())
+        
+        mock_char_row = MagicMock()
+        mock_char_row.__getitem__ = lambda s, key: {"id": uuid.UUID(char_id)}[key]
+        
+        mock_quest_row = MagicMock()
+        mock_quest_row.__getitem__ = lambda s, key: {
+            "id": 1,
+            "quest_def_id": "quest_001",
+            "progress_json": {
+                "obj_0": {"current": 0, "required": 3, "completed": False, "type": "kill", "target": "wolf"}
+            },
+            "name": "击败野狼",
+            "objectives_json": [{"type": "kill", "target": "wolf", "count": 3}],
+            "rewards_json": {},
+        }[key]
+
+        mock_get_pg.fetchrow = AsyncMock(side_effect=[
+            mock_char_row,
+        ])
+        mock_get_pg.fetch = AsyncMock(return_value=[mock_quest_row])
+        mock_get_pg.execute = AsyncMock(return_value=None)
+
+        # Execute: Kill goblin (wrong target)
+        messages = await update_quest_progress(
+            player_id, "kill", "goblin", 1
+        )
+
+        # Verify: No messages for wrong target
+        assert messages == []
+
+
+class TestQuestTriggersEdgeCases:
+    """Tests for quest trigger edge cases."""
+
+    @pytest.mark.asyncio
+    async def test_check_quest_triggers_auto(self, mock_get_pg, player_id):
+        """自动触发任务."""
+        mock_quest_def = MagicMock()
+        mock_quest_def.__getitem__ = lambda s, key: {
+            "id": "quest_001",
+            "name": "自动任务",
+            "prerequisites_json": {},
+            "trigger_json": {"type": "auto"},
+        }[key]
+
+        mock_get_pg.fetch = AsyncMock(return_value=[mock_quest_def])
+        mock_get_pg.fetchrow = AsyncMock(return_value=None)
+        mock_get_pg.execute = AsyncMock(return_value=None)
+
+        char_id = str(uuid.uuid4())
+        state = {"current_floor": 1, "character_id": char_id}
+
+        triggered = await check_quest_triggers(
+            player_id, state, "any", "any"
+        )
+
+        assert "自动任务" in triggered
+
+    @pytest.mark.asyncio
+    async def test_check_quest_triggers_prerequisites_not_met(self, mock_get_pg, player_id):
+        """前置条件不满足时不触发."""
+        mock_quest_def = MagicMock()
+        mock_quest_def.__getitem__ = lambda s, key: {
+            "id": "quest_001",
+            "name": "高级任务",
+            "prerequisites_json": {"min_level": 10},
+            "trigger_json": {"type": "location", "target": "起始之城"},
+        }[key]
+
+        mock_get_pg.fetch = AsyncMock(return_value=[mock_quest_def])
+        mock_get_pg.fetchrow = AsyncMock(return_value=None)
+
+        state = {"current_floor": 1, "level": 5, "character_id": str(uuid.uuid4())}
+
+        triggered = await check_quest_triggers(
+            player_id, state, "location", "起始之城"
+        )
+
+        assert triggered == []
+
+    @pytest.mark.asyncio
+    async def test_check_quest_triggers_already_has_quest(self, mock_get_pg, player_id):
+        """已有任务时不重复触发."""
+        mock_quest_def = MagicMock()
+        mock_quest_def.__getitem__ = lambda s, key: {
+            "id": "quest_001",
+            "name": "测试任务",
+            "prerequisites_json": {},
+            "trigger_json": {"type": "location", "target": "起始之城"},
+        }[key]
+
+        mock_get_pg.fetch = AsyncMock(return_value=[mock_quest_def])
+        # Simulate player already has this quest
+        mock_get_pg.fetchrow = AsyncMock(return_value={"status": "active"})
+
+        state = {"current_floor": 1, "character_id": str(uuid.uuid4())}
+
+        triggered = await check_quest_triggers(
+            player_id, state, "location", "起始之城"
+        )
+
+        assert triggered == []

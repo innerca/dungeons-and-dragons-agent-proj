@@ -27,6 +27,7 @@ dev = [
     "pytest-mock>=3.14.0",
     "fakeredis>=2.26.0",
     "grpcio-tools>=1.80.0",  # Only needed for proto generation
+    "pytest-cov>=7.1.0",
 ]
 
 [tool.pytest.ini_options]

@@ -56,3 +56,4 @@ asset/sao/*.txt
 
 # ChromaDB local data
 gameserver/data/
+.coverage

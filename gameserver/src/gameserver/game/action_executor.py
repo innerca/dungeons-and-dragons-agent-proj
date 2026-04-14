@@ -631,7 +631,8 @@ class ActionExecutor:
 
         # Get relationship with this NPC
         rel = await npc_relationship_service.get_relationship(player_id, actual_npc_id)
-        rel_tier = npc_relationship_service.get_relationship_tier(rel["level"])
+        current_level = rel["level"] if rel else 0
+        rel_tier = npc_relationship_service.get_relationship_tier(current_level)
 
         # Update interaction count (+1 relationship per conversation)
         new_level = await npc_relationship_service.update_relationship(
@@ -650,7 +651,7 @@ class ActionExecutor:
         )
 
         description = f"与 {npc_name} 对话，话题：{topic}。"
-        description += f"（关系: {rel_tier} [{rel['level']}→{new_level}]）"
+        description += f"（关系: {rel_tier} [{current_level}→{new_level}]）"
         if npc_context:
             description += f"\n{npc_context}"
         if triggered:
