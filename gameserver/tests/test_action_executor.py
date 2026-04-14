@@ -644,13 +644,14 @@ class TestHandleMoveTo:
         result = await executor._handle_move_to(
             player_id="test-player",
             state=state,
-            args={"location": "forest_entrance"},
+            args={"area": "forest", "location": "forest_entrance"},
             trace_id="test-trace"
         )
         
         # Then: Should update location
         assert result.success is True
-        assert "forest_entrance" in result.description.lower() or result.success
+        assert "forest" in result.description.lower()
+        assert "forest_entrance" in result.description.lower()
 
     @pytest.mark.asyncio
     @patch('gameserver.game.action_executor.state_service')
@@ -863,8 +864,10 @@ class TestHandleRest:
         
         # Then: Should heal HP
         assert result.success is True
-        # HP should increase or stay same (depends on implementation)
-        assert result.state_changes.get("current_hp", 30) >= 30
+        # HP should increase but not exceed max_hp
+        new_hp = result.state_changes.get("current_hp", 30)
+        assert new_hp > 30
+        assert new_hp <= 100
 
     @pytest.mark.asyncio
     @patch('gameserver.game.action_executor.state_service')
