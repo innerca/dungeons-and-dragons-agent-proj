@@ -184,15 +184,19 @@ cd gameserver && uv run pytest tests/ --cov=src/gameserver --cov-branch
 
 ```bash
 cd gateway && GO111MODULE=on go test ./... -v
+
+# 带覆盖率报告
+cd gateway && GO111MODULE=on go test ./... -coverprofile=coverage.out && go tool cover -html=coverage.out -o coverage.html
 ```
 
 ## 测试覆盖率
 
 ### 总体统计
-- ✅ **测试总数**: 241 passed, 0 skipped, 0 failed
-- ✅ **行覆盖率**: **52.30%** (1224/2306)
-- ✅ **分支覆盖率**: **50%** (287/568)
-- ✅ **CI 集成**: GitHub Actions 自动运行测试 + 覆盖率检查
+- ✅ **Python GameServer 测试**: 241 passed, 0 skipped, 0 failed
+- ✅ **Go Gateway 测试**: 7个测试文件覆盖核心模块（grpc/handler/middleware/server）
+- ✅ **Python 行覆盖率**: **52.30%** (1224/2306)
+- ✅ **Python 分支覆盖率**: **50%** (287/568)
+- ✅ **CI 集成**: GitHub Actions 自动运行双端测试 + 覆盖率检查
 
 ### 核心模块覆盖率
 
@@ -207,6 +211,18 @@ cd gateway && GO111MODULE=on go test ./... -v
 | state_service.py | 86% | 77% | 15 | ✅ 良好 |
 | postgres.py | 88% | 67% | 4 | ✅ 良好 |
 | redis_client.py | 87% | 67% | 4 | ✅ 良好 |
+
+### Go Gateway 测试覆盖
+
+| 模块 | 测试文件 | 测试内容 | 状态 |
+|------|---------|---------|------|
+| grpc/client | grpc_test.go | gRPC客户端连接和流式响应 | ✅ 已覆盖 |
+| handler/auth | auth_test.go | 认证中间件、Token验证、权限检查 | ✅ 已覆盖 |
+| handler/channels | channels_test.go | 响应通道并发安全 | ✅ 已覆盖 |
+| handler/sse | sse_test.go | SSE流式响应处理 | ✅ 已覆盖 |
+| handler/websocket | websocket_test.go | WebSocket连接和消息处理 | ✅ 已覆盖 |
+| middleware | middleware_test.go | Auth中间件、CORS、请求日志 | ✅ 已覆盖 |
+| server | server_test.go | HTTP服务器启动和配置 | ✅ 已覆盖 |
 
 ### 测试质量
 - ✅ 边界条件测试（HP=0、最小伤害、属性极值）
