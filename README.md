@@ -6,7 +6,7 @@ AI 驱动的 DND 游戏项目，基于微服务架构构建。以刀剑神域 Pr
 
 ## 🎮 Demo 演示
 
-https://github.com/innerca/dungeons-and-dragons-agent-proj/blob/main/output_40MB.mp4
+https://github.com/innerca/dungeons-and-dragons-agent-proj/blob/main/demo-gameplay.mp4
 
 > 视频展示了完整的游戏流程，包含角色创建、世界探索、战斗系统等核心功能。
 
@@ -20,7 +20,9 @@ https://github.com/innerca/dungeons-and-dragons-agent-proj/blob/main/output_40MB
 
 **游戏内容** → [世界观设定](data/dnd-world-setting.md) | [游戏系统](data/dnd-game-system.md) | [小说知识库](#小说知识库向量数据库)
 
-**工程实践** → [Agent 工程手册](agent-engineering-handbook.md) | [完整版手册](Agent工程手册final_version.md)
+**工程实践** → [Agent 工程手册](agent-engineering-handbook.md) | [完整版手册](engineering/Agent工程手册final_version.md) | [AI质量检查提示词](engineering/claude_quality_check_prompt.md) | [Claude模板](engineering/claude_template.md) | [工程题集](engineering/题集.md)
+
+**架构设计** → [轻量级用户画像方案](engineering/端侧轻量级用户画像系统落地方案.md) | [简洁可拓展方案](engineering/端侧用户画像系统：简洁可拓展落地方案.md)
 
 **关于作者** → [关于本项目与我的工作模式](#关于本项目与我的工作模式)
 
