@@ -348,3 +348,146 @@ class TestActionExecutor:
         
         # Then: Should use existing session
         assert mock_get.called
+
+
+class TestActionExecutorDefend:
+    """Tests for _handle_defend."""
+
+    @pytest.fixture
+    def executor(self):
+        return ActionExecutor()
+
+    @pytest.mark.asyncio
+    async def test_handle_defend_success(self, executor):
+        """防御总是成功."""
+        # Given: Any player state
+        state = {"current_hp": 100}
+        
+        # When: Defending
+        result = await executor._handle_defend(
+            player_id="test-player",
+            state=state,
+            args={},
+            trace_id="test-trace"
+        )
+        
+        # Then: Should succeed with AC bonus
+        assert result.success is True
+        assert result.action_type == "defend"
+        assert "AC+2" in result.description
+        assert result.details["ac_bonus"] == 2
+
+
+class TestActionExecutorLevelUp:
+    """Tests for level up logic."""
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.state_service.save_player_state')
+    async def test_check_level_up_single(self, mock_save):
+        """单次升级."""
+        from gameserver.game.action_executor import _check_level_up
+        
+        mock_save.return_value = None
+        state = {"level": 1, "experience": 0, "stat_vit": 10}
+        state_changes = {"experience": 150}
+        
+        result = await _check_level_up(
+            player_id="test-player",
+            state=state,
+            state_changes=state_changes,
+            trace_id="test-trace"
+        )
+        
+        # Should level up from 1 to 2
+        assert "レベルアップ" in result
+        assert state_changes["level"] == 2
+        assert state_changes["stat_points_available"] > 0
+
+    @pytest.mark.asyncio
+    @patch('gameserver.game.action_executor.state_service.save_player_state')
+    async def test_check_level_up_multiple(self, mock_save):
+        """多次连续升级."""
+        from gameserver.game.action_executor import _check_level_up
+        
+        mock_save.return_value = None
+        state = {"level": 1, "experience": 0, "stat_vit": 10}
+        state_changes = {"experience": 500}  # Enough for multiple levels
+        
+        result = await _check_level_up(
+            player_id="test-player",
+            state=state,
+            state_changes=state_changes,
+            trace_id="test-trace"
+        )
+        
+        # Should level up multiple times
+        assert "レベルアップ" in result
+        assert state_changes["level"] > 2
+
+    @pytest.mark.asyncio
+    async def test_check_level_up_no_level_up(self):
+        """经验不足不升级."""
+        from gameserver.game.action_executor import _check_level_up
+        
+        state = {"level": 1, "experience": 0, "stat_vit": 10}
+        state_changes = {"experience": 50}  # Not enough
+        
+        result = await _check_level_up(
+            player_id="test-player",
+            state=state,
+            state_changes=state_changes,
+            trace_id="test-trace"
+        )
+        
+        # Should not level up
+        assert result == ""
+        # level key won't be in state_changes if no level up
+        assert "level" not in state_changes or state_changes.get("level") == 1
+
+
+class TestActionExecutorDamageCalc:
+    """Tests for damage calculation logic."""
+
+    def test_roll_range_validation(self):
+        """掷骰结果在有效范围内."""
+        # Given: Multiple dice rolls
+        # When: Rolling 1000 times
+        # Then: All results should be in valid range
+        for _ in range(1000):
+            result = _roll(sides=20, count=1, modifier=0)
+            assert 1 <= result["rolls"][0] <= 20
+            assert 1 <= result["total"] <= 20
+
+    def test_roll_with_negative_modifier(self):
+        """负修正值测试."""
+        # Given: A roll with -5 modifier
+        result = _roll(sides=20, count=1, modifier=-5)
+        
+        assert result["modifier"] == -5
+        assert result["total"] == result["rolls"][0] - 5
+
+    def test_stat_mod_edge_cases(self):
+        """属性修正边界值."""
+        # Test minimum reasonable stat
+        assert _stat_mod(1) == -5
+        # Test very high stat
+        assert _stat_mod(30) == 10
+
+    def test_calc_exp_to_next_scaling(self):
+        """经验公式随等级递增."""
+        exp_1 = _calc_exp_to_next(1)
+        exp_5 = _calc_exp_to_next(5)
+        exp_10 = _calc_exp_to_next(10)
+        
+        # Should scale exponentially
+        assert exp_1 < exp_5 < exp_10
+        assert exp_5 > exp_1 * 2
+        assert exp_10 > exp_5 * 2
+
+    def test_calc_max_hp_scaling(self):
+        """HP 公式随等级和体质递增."""
+        hp_low = _calc_max_hp(level=1, vit=8)
+        hp_mid = _calc_max_hp(level=5, vit=10)
+        hp_high = _calc_max_hp(level=10, vit=14)
+        
+        assert hp_low < hp_mid < hp_high
