@@ -23,23 +23,8 @@ info()  { echo -e "${CYAN}[INFO]${NC} $*"; }
 # ---------- 加载环境变量 ----------
 load_env() {
     if [ ! -f .env ]; then
-        if [ -f .env.example ]; then
-            log ".env not found. Creating from .env.example..."
-            cp .env.example .env
-            log ".env created successfully."
-            echo ""
-            warn "Please edit .env and fill in your API keys before starting services."
-            warn "Required: DEEPSEEK_API_KEY (or OPENAI_API_KEY / ANTHROPIC_API_KEY)"
-            echo ""
-            read -p "Continue with default values? (yes/no): " confirm
-            if [ "$confirm" != "yes" ]; then
-                info "Aborted. Please edit .env and re-run this script."
-                exit 0
-            fi
-        else
-            error ".env and .env.example not found."
-            exit 1
-        fi
+        error ".env not found. Run 'make start' first to create it."
+        exit 1
     fi
     
     set -a
@@ -53,30 +38,39 @@ check_deps() {
 
     info "Checking dependencies..."
     echo ""
+    info "Required:"
+    info "  - psql (PostgreSQL client)"
+    info "  - uv (Python package manager)"
+    echo ""
 
+    # Check psql
     if ! command -v psql &>/dev/null; then
-        error "psql is not installed. Install: brew install postgresql@16 or use Docker mode"
+        error "psql is not installed. Please install PostgreSQL client."
         ok=false
+    else
+        local psql_version
+        psql_version=$(psql --version | grep -oE '[0-9]+\.[0-9]+' | head -1)
+        info "psql $psql_version"
     fi
 
+    # Check uv
     if ! command -v uv &>/dev/null; then
-        error "uv is not installed. Install: curl -LsSf https://astral.sh/uv/install.sh | sh"
+        error "uv is not installed. Please install uv (https://docs.astral.sh/uv/)"
         ok=false
+    else
+        local uv_version
+        uv_version=$(uv --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+        info "uv $uv_version"
     fi
+
+    echo ""
 
     if [ "$ok" = false ]; then
-        echo ""
         error "Some dependencies are missing. Please install them and retry."
-        echo ""
-        info "Quick install (macOS with Homebrew):"
-        info "  brew install postgresql@16 uv"
-        echo ""
-        info "Or use Docker mode and run:"
-        info "  docker compose up init-demo"
         exit 1
     fi
 
-    log "Dependencies OK."
+    log "All dependencies OK."
     echo ""
 }
 
@@ -87,10 +81,7 @@ check_db() {
     info "Checking database connection..."
     if ! psql "$db_url" -c "SELECT 1" >/dev/null 2>&1; then
         error "Cannot connect to database: $db_url"
-        echo ""
-        info "Make sure PostgreSQL is running:"
-        info "  Docker:  docker compose up -d postgres"
-        info "  Local:   brew services start postgresql@16"
+        info "Please make sure PostgreSQL is running."
         exit 1
     fi
     log "Database connected."
