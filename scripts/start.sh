@@ -25,8 +25,8 @@ check_env() {
         if [ -f .env.example ]; then
             warn ".env not found. Copying from .env.example..."
             cp .env.example .env
-            warn "Please edit .env and fill in your API keys, then re-run this script."
-            exit 1
+            log ".env created. Please edit it to fill in your API keys."
+            # Don't exit in Docker mode, let user edit later
         else
             error ".env and .env.example not found."
             exit 1
@@ -70,6 +70,19 @@ start_docker() {
     info "PostgreSQL:  localhost:5432"
     info "Redis:       localhost:6379"
     echo ""
+    
+    # Check if API key is configured
+    if grep -q "your-deepseek-api-key-here\|your-openai-api-key-here\|your-anthropic-api-key-here" .env 2>/dev/null; then
+        echo ""
+        warn "⚠️  LLM API Key not configured!"
+        info "To enable AI features:"
+        info "  1. Edit .env and fill in your API key:"
+        info "     DEEPSEEK_API_KEY=sk-xxx"
+        info "  2. Restart GameServer:"
+        info "     docker compose restart gameserver"
+        echo ""
+    fi
+    
     info "View logs: docker compose logs -f"
     info "Stop:      ./scripts/stop.sh"
 }

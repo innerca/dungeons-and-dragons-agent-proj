@@ -12,9 +12,9 @@ https://github.com/innerca/dungeons-and-dragons-agent-proj/blob/main/demo-gamepl
 
 ## 🔖 快速索引
 
-**快速开始** → [Docker 启动](#方式一docker-一键启动推荐) | [本地开发](#方式二本地开发) | [环境要求](#环境要求) | [运行测试](#运行测试)
+**快速开始** → [Docker 模式](#docker-模式推荐) | [本地开发](#本地开发模式) | [环境要求](#环境要求) | [运行测试](#运行测试)
 
-**运行测试** → [运行测试](#运行测试) | [测试覆盖率](#测试覆盖率)
+**测试覆盖** → [运行测试](#运行测试) | [测试覆盖率](#测试覆盖率)
 
 **核心文档** → [架构设计](#架构) | [技术栈](#技术栈) | [安全原则](#安全原则) | [项目结构](#项目结构)
 
@@ -24,7 +24,7 @@ https://github.com/innerca/dungeons-and-dragons-agent-proj/blob/main/demo-gamepl
 
 **代码质量审查** → [Java专属审查](engineering/quality_check_java.md) | [Python专属审查](engineering/quality_check_python.md) | [Go专属审查](engineering/quality_check_go.md) | [TypeScript专属审查](engineering/quality_check_typescript.md) | [C++专属审查](engineering/quality_check_cpp.md) | [Rust专属审查](engineering/quality_check_rust.md)
 
-**架构设计** → [轻量级用户画像方案](engineering/端侧轻量级用户画像系统落地方案.md) | [简洁可拓展方案](engineering/端侧用户画像系统：简洁可拓展落地方案.md)
+**架构方案探索** → [轻量级用户画像方案](engineering/端侧轻量级用户画像系统落地方案.md) | [简洁可拓展方案](engineering/端侧用户画像系统：简洁可拓展落地方案.md)
 
 **关于作者** → [关于本项目与我的工作模式](#关于本项目与我的工作模式)
 
@@ -32,116 +32,67 @@ https://github.com/innerca/dungeons-and-dragons-agent-proj/blob/main/demo-gamepl
 
 ## 快速启动
 
+### 首次使用（Docker模式2步完成）
+
 ```bash
 # 1. 克隆项目
 git clone https://github.com/innerca/dungeons-and-dragons-agent-proj.git
 cd dungeons-and-dragons-agent-proj
 
-# 2. 配置环境变量（填入你的 API Key）
-cp .env.example .env
-# 编辑 .env，填入 DEEPSEEK_API_KEY
-
-# 3. 初始化数据（一次性操作，自动创建 .env 如果不存在）
-make init-data
-
-# 4. 启动服务
-make start
-# 或直接：bash scripts/start.sh
-
-# 5. 停止服务
-make stop
+# 2. 配置环境 + 启动服务
+make start      # 自动创建 .env + 启动Docker + 初始化数据
 ```
 
-> **完整小说数据（可选）**: 如需使用 SAO Progressive 小说内容进行 RAG，请自行准备 TXT 文件放入 `asset/sao/` 目录，然后运行 `make ingest-novels`
+> 📝 **首次登录**: 打开 http://localhost:3000 注册新账号
+>
+> ⚙️ **配置API Key**: 编辑 `.env` 填入 `DEEPSEEK_API_KEY`，然后 `docker compose restart gameserver`
+
+### 日常使用
+
+```bash
+make start   # 启动服务
+make stop    # 停止服务
+```
 
 ### 数据初始化
 
-**初始化是一次性操作**，只需在首次启动或需要重置数据时执行。
+**只需首次执行一次**，之后无需重复。
 
 ```bash
-# 交互式初始化（如果数据库有数据会询问是否清空）
-make init-data
-
-# 强制重置（直接清空所有数据并重新初始化）
-make init-data-reset
+make init-data        # 初始化（有数据时会询问）
+make init-data-reset  # 强制重置（清空并重新初始化）
 ```
 
-**初始化内容**:
-- ✅ 自动创建 `.env`（如果不存在，从 `.env.example` 复制）
-- ✅ PostgreSQL 表结构
-- ✅ 2 个测试账号和角色
-- ✅ 角色装备、剑技、任务进度
-- ✅ NPC 关系数据
-- ✅ 20 条示例文本块（ChromaDB）
-- ✅ 游戏实体向量化
+**初始化内容**: 数据库表结构、测试账号、示例数据、向量库
 
-**重要说明**:
-- 初始化脚本具有**幂等性**：如果数据库已有数据，会自动跳过
-- 代码更新、镜像重新构建**不会**清空你的账号数据
-- 数据持久化在 Docker volumes 中，不受服务重启影响
+> 💡 **数据安全**: 代码更新不会丢失账号数据，初始化脚本会自动跳过已有数据
 
-**测试账号**:
-- `demo` / `demo123` - 等级3角色，有装备和任务进度
-- `testplayer` / `test123` - 等级1新手角色
-
-### 方式一：Docker 一键启动（推荐）
+### Docker 模式（推荐）
 
 ```bash
-# 1. 初始化数据（首次需要）
-make init-data
+make start-docker     # 启动（后台运行，自动初始化数据）
+# 浏览器: http://localhost:3000
 
-# 2. 启动服务
-make start-docker
-# 或: docker compose up -d
-# 浏览器打开 http://localhost:3000
-
-# 停止服务
-make stop
-# 或: docker compose down
-
-# 查看日志
-make dev-logs
-# 或: docker compose logs -f
+make stop             # 停止
+make dev-logs         # 查看日志
 ```
 
-> **国内网络注意：** Docker Hub 在国内可能无法直接访问，需要配置镜像加速器。
-> 在 Docker daemon 配置中添加（OrbStack 为 `~/.orbstack/config/docker.json`，Docker Desktop 为 Settings > Docker Engine）：
-> ```json
-> {
->   "registry-mirrors": [
->     "https://docker.m.daocloud.io",
->     "https://mirror.ccs.tencentyun.com"
->   ]
-> }
-> ```
-> 此外，Dockerfile 中已内置国内加速配置：
-> - Gateway: `GOPROXY=https://goproxy.cn,direct`
-> - GameServer: PyPI 清华源 `https://pypi.tuna.tsinghua.edu.cn/simple`
+> ✨ **首次启动自动初始化**: 表结构、怪物/NPC/任务数据
+> 
+> 📝 **注册账号**: 前端页面注册，创建你的角色
+>
+> 📊 **可选**: 如需测试数据，运行 `make init-data`（需psql）
 
-### 方式二：本地开发
+> **国内网络**: 需要配置 Docker 镜像加速器，详见[环境要求](#环境要求)
+
+### 本地开发模式
 
 ```bash
-# 0. 初始化数据（首次需要）
-make init-data
+# 前置依赖: Go 1.22+, Python 3.12+, Node.js 18+, PostgreSQL 16, Redis 7
 
-# 1. 前置依赖（首次需要）
-# - Go 1.22+, Python 3.12+, Node.js 18+, protoc
-# - uv: curl -LsSf https://astral.sh/uv/install.sh | sh
-# - protoc Go 插件: go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-# - 前端依赖: cd frontend && npm install && cd ..
-# - GameServer 依赖: cd gameserver && uv sync && cd ..
-
-# 2. 生成 gRPC 代码（修改 proto 文件后执行）
-make proto-gen
-
-# 3. 分别在三个终端启动服务（按此顺序）
-make dev-gameserver     # 终端 1: Python GameServer :50051
-make dev-gateway        # 终端 2: Go Gateway :8080
-make dev-frontend       # 终端 3: React Frontend :5173
-# 浏览器打开 http://localhost:5173
-
-# 查看所有可用命令
-make help
+make dev-gameserver   # 终端1: GameServer :50051
+make dev-gateway      # 终端2: Gateway :8080
+make dev-frontend     # 终端3: Frontend :5173
 ```
 
 ## 项目概述
@@ -191,25 +142,19 @@ make help
 
 ## 安全原则
 
-安全是本项目的最高优先级，嵌入到每一层架构中。
+安全是本项目的最高优先级，采用**纵深防御**策略，在输入、推理、记忆、执行各层进行检测和拦截。
 
 ### 核心原则
-1. **纵深防御**: 在输入、推理、记忆、执行各层进行检测和拦截
-2. **最小权限**: Agent 只能访问完成任务所需的最少工具和数据
-3. **人在回路**: 关键操作需要人工确认
-4. **可观测性**: 所有行为可追溯、可复现
+1. **纵深防御** - 各层检测拦截，攻击成功率 < 5%
+2. **最小权限** - Agent 只能访问最少必要工具和数据
+3. **人在回路** - 关键操作需人工确认
+4. **可观测性** - 所有行为可追溯可复现
 
-### 安全检查矩阵
+### 安全检查矩阵（7项）
+- Prompt 注入检测、越狱防御（拒绝率 >95%）、工具参数校验
+- 权限隔离、输出泄露防护、成本熔断、审计完整性
 
-| 检查项 | 方法 | 通过标准 |
-|--------|------|----------|
-| Prompt 注入检测 | 通过 Garak、PromptInject 自动化攻击 | 攻击成功率 < 5% |
-| 越狱防御 | 测试 50+ 已知越狱模板 | 拒绝率 > 95% |
-| 工具参数校验 | 异常类型、SQL 注入、路径穿越 | 工具拒绝执行并记录日志 |
-| 权限隔离 | 用户 A 尝试访问用户 B 的数据 | 返回未授权错误 |
-| 输出泄露防护 | 回复中随机出现手机号、邮箱 | 脱敏模块检测并遮蔽 |
-| 成本熔断 | 模拟超长对话或循环调用 | 达到阈值时终止或上报 |
-| 审计完整性 | 检查所有关键事件日志 | 日志完整且防篡改 |
+> 📖 完整标准见上方表格
 
 ## 运行测试
 
@@ -234,65 +179,56 @@ cd gateway && GO111MODULE=on go test ./... -coverprofile=coverage.out && go tool
 ## 测试覆盖率
 
 ### 总体统计
-- ✅ **Python GameServer 测试**: 241 passed, 0 skipped, 0 failed
-- ✅ **Go Gateway 测试**: 52个测试用例，38个通过，8个测试文件
-- ✅ **Python 行覆盖率**: **52.30%** (1224/2306)
-- ✅ **Python 分支覆盖率**: **50%** (287/568)
-- ✅ **Go Gateway 语句覆盖率**: **41.4%**
-- ✅ **CI 集成**: GitHub Actions 自动运行双端测试 + 覆盖率检查（Go阈值40%）
+| 项目 | 测试数 | 通过率 | 行覆盖率 | 分支覆盖率 |
+|------|--------|--------|---------|-----------|
+| Python GameServer | 241 | 100% | 52.30% | 50% |
+| Go Gateway | 52 | 73% | 41.4% | - |
 
-### 核心模块覆盖率
+> CI自动运行测试，Go覆盖率阈值40%
 
-| 模块 | 行覆盖率 | 分支覆盖率 | 测试数 | 状态 |
-|------|---------|-----------|--------|------|
-| action_executor.py | 86% | 82% | 81 | 🌟 优秀 |
-| quest_service.py | 84% | 86% | 19 | 🌟 优秀 |
-| combat_state.py | 88% | ~75% | 5 | ✅ 优秀 |
-| context_builder.py | 76% | ~65% | 12 | ✅ 良好 |
-| npc_relationship_service.py | 100% | ~95% | 5 | 🌟 完美 |
-| scene_classifier.py | 91% | ~85% | 8 | ✅ 优秀 |
-| state_service.py | 86% | 77% | 15 | ✅ 良好 |
-| postgres.py | 88% | 67% | 4 | ✅ 良好 |
-| redis_client.py | 87% | 67% | 4 | ✅ 良好 |
+### 核心模块（Python）
 
-### Go Gateway 测试覆盖
+| 模块 | 行覆盖率 | 分支覆盖率 | 状态 |
+|------|---------|-----------|------|
+| npc_relationship_service.py | 100% | ~95% | 🌟 完美 |
+| scene_classifier.py | 91% | ~85% | 🌟 |
+| combat_state.py | 88% | ~75% | 🌟 |
+| action_executor.py | 86% | 82% | 🌟 |
+| state_service.py | 86% | 77% | ✅ |
+| postgres.py | 88% | 67% | ✅ |
+| redis_client.py | 87% | 67% | ✅ |
+| quest_service.py | 84% | 86% | 🌟 |
+| context_builder.py | 76% | ~65% | ✅ |
 
-| 模块 | 测试文件 | 覆盖率 | 测试内容 |
-|------|---------|--------|---------|
-| grpc/client | grpc_test.go | 0.0% | gRPC客户端连接和流式响应（无测试用例） |
-| handler/* | auth/channels/sse/websocket_test.go | 34.7% | 认证、通道、SSE、WebSocket处理 |
-| middleware/* | auth/cors/middleware_test.go | 76.0% | Auth中间件、CORS、请求日志 |
-| server/* | server_test.go | 100.0% | HTTP服务器启动和配置 |
-| config/* | config_test.go | 100.0% | 配置加载和验证 |
+### Go Gateway 测试
 
-**注**：Go覆盖率只统计语句覆盖率（statement coverage），不统计分支覆盖率。
+| 模块 | 测试文件 | 覆盖率 | 内容 |
+|------|---------|--------|------|
+| server/config | server_test.go, config_test.go | 100% | 服务器启动、配置加载 |
+| middleware | auth/cors/middleware_test.go | 76% | Auth中间件、CORS、日志 |
+| handler | auth/channels/sse/websocket_test.go | 34.7% | 认证、通道、SSE、WebSocket |
+| grpc/client | grpc_test.go | 0.0% | gRPC客户端（待补充） |
+
+> Go只统计语句覆盖率（statement coverage）
 
 ### 测试质量
-- ✅ 边界条件测试（HP=0、最小伤害、属性极值）
-- ✅ 状态转换测试（升级逻辑、战斗状态）
-- ✅ 错误处理测试（未知工具、异常捕获）
-- ✅ Mock 集成测试（fakeredis、asyncpg monkeypatch）
-- ✅ 条件分支测试（命中/未命中/暴击/怪物死亡）
-- ✅ 确定性测试（无概率性断言，全部使用 mock）
-
-**Mock 策略**:
-- Redis: `fakeredis.aioredis.FakeRedis`
-- PostgreSQL: `monkeypatch` + `AsyncMock`
-- Game Service: `patch` decorator
-- Random: 函数 mock 替代 return_value
+- ✅ 边界条件、状态转换、错误处理全覆盖
+- ✅ 100% Mock策略（fakeredis、asyncpg monkeypatch）
+- ✅ 确定性测试（无概率性断言）
+- ✅ Given-When-Then 结构
 
 ## 环境要求
 
-**Docker 方式（推荐）：**
-- Docker & Docker Compose
-
-**本地开发方式：**
-- Go 1.22+（确保 `$(go env GOPATH)/bin` 在 PATH 中）
-- Python 3.12+
-- Node.js 18+
-- [uv](https://docs.astral.sh/uv/)（Python 包管理）
-- protoc（Protocol Buffers 编译器）
-- protoc-gen-go, protoc-gen-go-grpc（Go gRPC 代码生成插件）
+| 组件 | Docker模式 | 本地开发 |
+|------|-----------|----------|
+| Docker & Compose | ✅ 必需 | ❌ 可选 |
+| Go | ❌ | ✅ 1.22+ |
+| Python | ❌ | ✅ 3.12+ |
+| Node.js | ❌ | ✅ 18+ |
+| PostgreSQL | ✅ 容器 | ✅ 16+ |
+| Redis | ✅ 容器 | ✅ 7+ |
+| uv (Python包管理) | ❌ | ✅ [安装](https://docs.astral.sh/uv/) |
+| protoc + 插件 | ❌ | ✅ 生gRPC代码 |
 
 ## 游戏设计文档
 
@@ -306,91 +242,74 @@ cd gateway && GO111MODULE=on go test ./... -coverprofile=coverage.out && go tool
 
 ## 小说知识库（向量数据库）
 
-项目使用 ChromaDB 将刀剑神域 Progressive 系列小说（1-8卷）向量化存储，用于游戏中的 RAG（检索增强生成）。
+使用 ChromaDB 存储 SAO Progressive 1-8卷小说（101章节 / 1605 chunks），支持RAG检索增强生成。
 
-### 数据源
+### 核心数据
+- **数据源**: 8卷TXT文本（`asset/sao/`）
+- **分块策略**: 按章节+段落两级拆分（500-1000字符/chunk，100字符重叠）
+- **Metadata**: 卷号/故事名/节号 + 艾恩葛朗特层数/游戏内时间
+- **Embedding**: BAAI/bge-small-zh-v1.5（中文优化，~90MB）
+- **存储**: 本地持久化（`gameserver/data/chromadb/`）
 
-8 本 SAO Progressive 小说的 TXT 文本，位于 `asset/sao/` 目录。
-
-| 卷 | 故事 | 艾恩葛朗特层数 |
-|---|---|---|
-| 1 | 无星夜的咏叹调 / 幻眬剑之回旋曲 | 1-2 层 |
-| 2 | 黑白协奏曲 | 3 层 |
-| 3 | 泡影的船歌 | 4 层 |
-| 4 | 阴沉薄暮的诙谐曲 | 5 层 |
-| 5-6 | 黄金定律的卡农（上/下）| 6 层 |
-| 7-8 | 赤色焦热的狂想曲（上/下）| 7 层 |
-
-入库统计：**101 个章节 / 1605 个 chunks / 8 卷全覆盖**
-
-### 分块策略
-
-- **第一级**：按故事章节（story + section number）严格拆分
-- **第二级**：在章节内按段落边界拆分，每 chunk 约 500-1000 字符，相邻 chunk 间保留 100 字符重叠
-
-### 数据标注
-
-每个 chunk 携带两个维度的 metadata：
-
-| 维度 | 字段 | 说明 |
-|------|------|------|
-| 基础结构 | `volume`, `story_title`, `section_number`, `chunk_index` | 卷号、故事名、节号、chunk 序号 |
-| 游戏世界 | `aincrad_layer`, `in_game_date` | 艾恩葛朗特层数、游戏内时间 |
-
-### 向量数据库配置
-
-- 引擎：ChromaDB（本地持久化）
-- Embedding 模型：BAAI/bge-small-zh-v1.5（中文优化，~90MB）
-- 存储路径：`gameserver/data/chromadb/`（不提交到 git）
-- Collection：`sao_progressive_novels`
+> 📖 详见 [小说分块策略](data/dnd-novel-chunking.md)
 
 ### 构建知识库
 
 ```bash
-# 安装依赖（首次）
-cd gameserver && uv sync
-
-# 执行向量化入库
-make ingest-novels
-
-# 验证入库结果
-make verify-vectordb
+cd gameserver && uv sync      # 安装依赖
+make ingest-novels             # 向量化入库
+make verify-vectordb           # 验证结果
 ```
 
 ## 项目结构
 
+### 核心模块
+
+**GameServer (Python) - DND游戏引擎**
+- `game/action_executor.py` - 16个工具处理器 + 5步验证链（权限→前置→资源→计算→写入）
+- `game/combat_state.py` - Redis战斗状态管理 + 自动反击系统
+- `game/quest_service.py` - 任务状态机（FSM）+ 进度追踪 + 奖励发放
+- `game/context_builder.py` - 6层上下文组装（战斗/任务/关系/RAG/历史/系统提示）
+- `game/scene_classifier.py` - 场景分类 + 动态工具裁剪 + 场景感知RAG
+- `game/npc_relationship_service.py` - NPC关系系统（-100~100，7级好感度）
+- `llm/circuit_breaker.py` - 三态熔断器 + 滑动窗口检测 + 自动fallback切换
+- `service/request_metrics.py` - 请求指标追踪 + Token成本估算
+
+**Gateway (Go) - API网关**
+- `handler/` - REST API（认证/SSE/WebSocket/频道管理）
+- `middleware/` - Auth中间件 + CORS + 请求日志
+- `grpc/client` - gRPC流式客户端
+
+### 目录结构
+
 ```
 .
-├── proto/              # 共享 gRPC 定义 (5 个 RPC)
-├── frontend/           # React + TypeScript 前端 (登录/注册/角色创建/游戏)
-├── gateway/            # Golang 网关 (Auth 中间件 + REST API)
-├── gameserver/         # Python 游戏服务器 (DND 引擎)
+├── frontend/              # React + TypeScript 前端
+│   ├── src/pages/         # 登录/注册/角色创建/游戏页面
+│   └── src/services/      # API + WebSocket + SSE通信
+│
+├── gateway/               # Go 网关
+│   ├── internal/handler/  # HTTP处理器
+│   ├── internal/middleware/ # 中间件
+│   └── cmd/gateway/       # 入口
+│
+├── gameserver/            # Python 游戏服务器
 │   ├── src/gameserver/
-│   │   ├── config/     # 配置加载 (游戏参数/战斗/升级/经济)
-│   │   ├── db/         # PostgreSQL + Redis + ChromaDB 连接层
-│   │   ├── game/       # 游戏引擎核心
-│   │   │   ├── action_executor.py   # 16 工具处理器 + 5 步验证链
-│   │   │   ├── combat_state.py      # Redis 战斗状态 + 自动反击
-│   │   │   ├── quest_service.py     # 任务状态机 (FSM)
-│   │   │   ├── world_flags_service.py    # 世界标记/剧情分支
-│   │   │   ├── npc_relationship_service.py # NPC 关系 (-100~100)
-│   │   │   ├── scene_classifier.py  # 场景分类 + 工具/RAG 裁剪
-│   │   │   ├── context_builder.py   # 6 层上下文组装
-│   │   │   └── tools.py             # ReAct 工具定义
-│   │   ├── llm/        # LLM 提供商 (DeepSeek/OpenAI/Claude) + 熔断器
-│   │   │   └── circuit_breaker.py   # 三态熔断器 + 滑动窗口检测
-│   │   └── service/    # 业务逻辑层
-│   │       └── request_metrics.py   # 请求指标追踪 + 成本估算
-│   └── scripts/        # 数据库初始化/迁移/数据管理/向量化
-│       └── migrations/  # SQL 迁移 (v0500_schema.sql)
-├── scripts/            # 一键启动/停止脚本 (含环境检测)
-├── asset/              # 游戏资源
-│   └── sao/            # SAO Progressive 小说文本 (1-8卷)
-├── data/               # 游戏设计文档 + 实体数据
-│   └── entities/       # YAML 实体定义 (怪物/NPC/任务，git 跟踪)
-├── docker-compose.yml  # 容器编排 (PG + Redis + GameServer + Gateway + Frontend)
-├── Makefile            # 构建命令
-└── VERSION             # 当前版本
+│   │   ├── game/          # 游戏引擎核心（见上方核心模块）
+│   │   ├── llm/           # LLM提供商 + 熔断器
+│   │   ├── db/            # PostgreSQL + Redis + ChromaDB
+│   │   └── service/       # 业务逻辑 + 请求追踪
+│   └── scripts/           # 数据管理 + 向量化脚本
+│
+├── proto/                 # gRPC 定义（5个RPC）
+├── data/                  # 游戏设计文档 + YAML实体
+│   ├── entities/          # 怪物/NPC/任务定义
+│   └── dnd-*.md           # 世界观 + 游戏系统 + 分块策略
+├── asset/sao/             # SAO Progressive 小说文本（1-8卷）
+├── scripts/               # 启动/初始化脚本
+├── docker-compose.yml     # 容器编排
+├── Makefile               # 构建命令
+└── VERSION                # 当前版本
 ```
 
 ## 更新日志
@@ -408,6 +327,9 @@ make verify-vectordb
 - ✅ 更新 README 快速索引中的所有文档链接
 - ✅ 更新 agent-engineering-handbook.md 内部对完整版的引用
 - ✅ 验证所有文档链接和锚点跳转正确
+
+<details>
+<summary>查看完整更新日志</summary>
 
 ### v0.5006 (2026-04-14) - 核心模块测试覆盖率大幅提升至 84%+
 
@@ -632,6 +554,8 @@ make verify-vectordb
 - 端到端验证通过：Frontend -> WS -> Gateway -> gRPC -> GameServer -> DeepSeek -> SSE 流式响应
 - 安全原则和架构文档
 - Makefile 统一构建命令
+
+</details>
 
 ## 关于本项目与我的工作模式
 
