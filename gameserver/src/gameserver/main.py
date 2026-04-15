@@ -39,6 +39,17 @@ async def serve() -> None:
     settings = Settings.load(config_path)
     init_settings(settings)
 
+    # Check LLM API keys on startup
+    llm_config = settings.llm
+    primary_provider = llm_config.providers.get(llm_config.primary_provider, llm_config.providers.get("deepseek"))
+    if primary_provider and not primary_provider.api_key:
+        logger.warning(
+            "LLM API key is not configured for provider '%s'. "
+            "Set %s_API_KEY in .env to enable AI features.",
+            llm_config.primary_provider,
+            llm_config.primary_provider.upper(),
+        )
+
     # Initialize database connections (require DATABASE_URL env var)
     database_url = os.environ.get("DATABASE_URL")
     if not database_url:
