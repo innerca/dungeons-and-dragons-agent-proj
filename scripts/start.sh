@@ -126,6 +126,9 @@ check_local_deps() {
 
     echo ""
 
+    # Check for psql (needed for demo data initialization)
+    check_cmd psql "Install: brew install postgresql@16 or use Docker mode" || ok=false
+
     # Check for running PostgreSQL and Redis
     if ! pg_isready -h localhost -p 5432 &>/dev/null 2>&1; then
         warn "PostgreSQL not running on localhost:5432"

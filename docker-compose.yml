@@ -61,6 +61,21 @@ services:
       start_period: 300s
     restart: unless-stopped
 
+  init-demo:
+    build:
+      context: ./gameserver
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sao_dev_password}
+      HF_ENDPOINT: https://hf-mirror.com
+    depends_on:
+      gameserver:
+        condition: service_healthy
+    command: ["bash", "scripts/init_demo.sh"]
+    restart: "no"
+
   gateway:
     build:
       context: ./gateway
