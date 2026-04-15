@@ -92,6 +92,29 @@ class ChatService:
         provider_name = model if model in self._settings.llm.providers else None
         provider = self._get_provider(provider_name)
 
+        # Check if API key is configured
+        if not provider._config.api_key:
+            logger.warning(
+                "trace=%s step=api_key_check status=empty provider=%s",
+                trace_id,
+                provider_name or self._settings.llm.default_provider,
+            )
+            yield {
+                "content": "",
+                "is_done": True,
+                "error": (
+                    "⚠️ LLM API Key 未配置！\n\n"
+                    "请在 .env 文件中配置 API Key 以启用 AI 功能：\n"
+                    "  1. 编辑项目根目录的 .env 文件\n"
+                    "  2. 填入你的 DEEPSEEK_API_KEY=sk-xxx\n"
+                    "  3. 重启 GameServer: docker compose restart gameserver\n\n"
+                    "获取 API Key: https://platform.deepseek.com/"
+                ),
+                "actions": [],
+                "state_changes": {},
+            }
+            return
+
         # Check if this is the first message (before saving)
         history = await state_service.get_recent_messages(player_id, count=1)
         is_first_message = len(history) == 0
