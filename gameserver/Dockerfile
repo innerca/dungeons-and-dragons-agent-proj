@@ -21,12 +21,17 @@ COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app/src /app/src
 COPY --from=builder /app/gen /app/gen
 COPY --from=builder /app/config /app/config
+COPY scripts/ scripts/
+COPY data/ data/
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app/src:/app/gen"
 ENV PYTHONUNBUFFERED=1
 ENV HF_ENDPOINT=https://hf-mirror.com
 ENV HF_HOME=/app/data/hf_cache
+
+# Install psql client for demo initialization
+RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client && rm -rf /var/lib/apt/lists/*
 
 EXPOSE 50051
 
