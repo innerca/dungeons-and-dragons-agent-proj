@@ -41,30 +41,67 @@ cd dungeons-and-dragons-agent-proj
 cp .env.example .env
 # 编辑 .env，填入 DEEPSEEK_API_KEY
 
-# 3. 一键启动（自动检测 Docker / 本地环境）
+# 3. 初始化数据（一次性操作，自动创建 .env 如果不存在）
+make init-data
+
+# 4. 启动服务
 make start
 # 或直接：bash scripts/start.sh
 
-# 4. 一键停止
+# 5. 停止服务
 make stop
 ```
 
-> **Demo 数据**: 首次启动时会自动初始化 demo 数据（测试账号、20 条示例文本 chunks）。Demo 模式无需额外数据文件即可运行。
->
 > **完整小说数据（可选）**: 如需使用 SAO Progressive 小说内容进行 RAG，请自行准备 TXT 文件放入 `asset/sao/` 目录，然后运行 `make ingest-novels`
+
+### 数据初始化
+
+**初始化是一次性操作**，只需在首次启动或需要重置数据时执行。
+
+```bash
+# 交互式初始化（如果数据库有数据会询问是否清空）
+make init-data
+
+# 强制重置（直接清空所有数据并重新初始化）
+make init-data-reset
+```
+
+**初始化内容**:
+- ✅ 自动创建 `.env`（如果不存在，从 `.env.example` 复制）
+- ✅ PostgreSQL 表结构
+- ✅ 2 个测试账号和角色
+- ✅ 角色装备、剑技、任务进度
+- ✅ NPC 关系数据
+- ✅ 20 条示例文本块（ChromaDB）
+- ✅ 游戏实体向量化
+
+**重要说明**:
+- 初始化脚本具有**幂等性**：如果数据库已有数据，会自动跳过
+- 代码更新、镜像重新构建**不会**清空你的账号数据
+- 数据持久化在 Docker volumes 中，不受服务重启影响
+
+**测试账号**:
+- `demo` / `demo123` - 等级3角色，有装备和任务进度
+- `testplayer` / `test123` - 等级1新手角色
 
 ### 方式一：Docker 一键启动（推荐）
 
 ```bash
+# 1. 初始化数据（首次需要）
+make init-data
+
+# 2. 启动服务
 make start-docker
-# 或: make dev
+# 或: docker compose up -d
 # 浏览器打开 http://localhost:3000
 
 # 停止服务
 make stop
+# 或: docker compose down
 
 # 查看日志
 make dev-logs
+# 或: docker compose logs -f
 ```
 
 > **国内网络注意：** Docker Hub 在国内可能无法直接访问，需要配置镜像加速器。
@@ -84,17 +121,20 @@ make dev-logs
 ### 方式二：本地开发
 
 ```bash
-# 前置依赖（首次需要）
+# 0. 初始化数据（首次需要）
+make init-data
+
+# 1. 前置依赖（首次需要）
 # - Go 1.22+, Python 3.12+, Node.js 18+, protoc
 # - uv: curl -LsSf https://astral.sh/uv/install.sh | sh
 # - protoc Go 插件: go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 # - 前端依赖: cd frontend && npm install && cd ..
 # - GameServer 依赖: cd gameserver && uv sync && cd ..
 
-# 生成 gRPC 代码（修改 proto 文件后执行）
+# 2. 生成 gRPC 代码（修改 proto 文件后执行）
 make proto-gen
 
-# 分别在三个终端启动服务（按此顺序）
+# 3. 分别在三个终端启动服务（按此顺序）
 make dev-gameserver     # 终端 1: Python GameServer :50051
 make dev-gateway        # 终端 2: Go Gateway :8080
 make dev-frontend       # 终端 3: React Frontend :5173

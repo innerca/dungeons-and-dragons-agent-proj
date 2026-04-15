@@ -7,7 +7,7 @@ GOPATH_BIN := $(shell go env GOPATH)/bin
 export GO111MODULE=on
 export PATH := $(GOPATH_BIN):$(PATH)
 
-.PHONY: proto-gen proto-go proto-py clean dev dev-down dev-logs help ingest-novels verify-vectordb start stop db-init test test-gateway test-gameserver test-frontend clean-branches
+.PHONY: proto-gen proto-go proto-py clean dev dev-down dev-logs help ingest-novels verify-vectordb start stop db-init test test-gateway test-gameserver test-frontend clean-branches init-data init-data-reset
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
@@ -20,6 +20,12 @@ start: ## Start all services (auto-detect Docker/local)
 
 stop: ## Stop all services
 	bash scripts/stop.sh
+
+init-data: ## Initialize/reset all data (PostgreSQL + ChromaDB)
+	bash scripts/init-data.sh fresh
+
+init-data-reset: ## Force clear and reinitialize all data
+	bash scripts/init-data.sh reset
 
 start-docker: ## Start via Docker Compose
 	bash scripts/start.sh docker
