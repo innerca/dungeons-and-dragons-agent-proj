@@ -35,29 +35,29 @@ cat > .ai/templates.md << 'EOF'
 # AI 输出模板
 
 ## Plan 模板(等确认)
-````
+```
 [模式: Plan]
 ### 环境:分支、未提交、远端
 ### 子任务:[动作] [路径] — [目的]
 ### 回滚:`git reset --hard HEAD~1`
 **请回复"执行"**
-````
+```
 
 ## L1 模板(直行)
-````
+```
 [模式: L1]
 ### 调用链:谁调我 / 我调谁
 ### 破坏签名?[是/否]
 ### 边界:[null/超时/竞态]
-````
+```
 
 ## 审计(附代码尾)
-````
+```
 - [ ] 硬编码? 破坏签名? 新env? 冗余文件?
-````
+```
 EOF
 
-cat > .ai/python-style.md << 'EOF'
+cat > .ai/python-style.md << 'ENDOFFILE'
 # Python 风格速查
 
 ```python
@@ -77,7 +77,7 @@ class Reporter:
         self.cache = cache
         self.notifier = notifier
 ```
-EOF
+ENDOFFILE
 
 echo "✅ AI 协作规范已安装。"
 ```
@@ -109,28 +109,31 @@ echo "✅ AI 协作规范已安装。"
 ## 效果示例
 
 ### Plan 模式(等待确认)
-````
+
+```text
 [模式: Plan]
 ### 环境:feature/user-cache,无未提交
 ### 子任务:
 1. 修改 src/cache.ts — 增加过期时间
 **请回复"执行"**
-````
+```
 
 ### L1 模式(直接执行)
-````
+
+```text
 [模式: L1]
 ### 调用链:被 3 个组件调用
 ### 破坏签名?否
 [代码...]
-````
+```
 
 ### L2 模式(极简)
-````
+
+```text
 [模式: L2]
 // [AI] 调整按钮间距
 [代码...]
-````
+```
 
 ---
 
