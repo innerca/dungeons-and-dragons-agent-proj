@@ -7,7 +7,7 @@ GOPATH_BIN := $(shell go env GOPATH)/bin
 export GO111MODULE=on
 export PATH := $(GOPATH_BIN):$(PATH)
 
-.PHONY: proto-gen proto-go proto-py clean dev dev-down dev-logs help ingest-novels verify-vectordb start stop db-init test test-gateway test-gameserver test-frontend clean-branches init-data init-data-reset
+.PHONY: proto-gen proto-go proto-py clean dev dev-down dev-logs help ingest-novels verify-vectordb start stop db-init test test-gateway test-gameserver test-frontend clean-branches init-data init-data-reset collect-metrics
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
@@ -123,6 +123,13 @@ ingest-novels: ## Ingest SAO novels into ChromaDB
 
 verify-vectordb: ## Verify ChromaDB ingestion results
 	cd gameserver && HF_ENDPOINT=https://hf-mirror.com uv run python -m scripts.verify_vectordb
+
+collect-metrics: ## Aggregate GameServer request_summary logs (usage: make collect-metrics LOG_FILE=path/to/log)
+	@if [ -z "$(LOG_FILE)" ]; then \
+		echo "Usage: make collect-metrics LOG_FILE=path/to/log"; \
+		exit 1; \
+	fi
+	bash scripts/collect_metrics.sh "$(LOG_FILE)"
 
 # --- Git maintenance ---
 
