@@ -92,6 +92,9 @@ class RequestMetrics:
     
     trace_id: str
     start_time: float = field(default_factory=time.time)
+    first_token_ms: float | None = None
+    stream_success: bool = False
+    fallback_used: bool = False
     
     # RAG metrics
     rag: RAGMetrics | None = None
@@ -149,6 +152,27 @@ class RequestMetrics:
             error=error,
         ))
         self._tool_ms += latency_ms
+
+    def set_first_token_latency(self, latency_ms: float) -> None:
+        """Record time to first streamed token once per request."""
+        if self.first_token_ms is None:
+            self.first_token_ms = latency_ms
+
+    def mark_stream_success(self, success: bool) -> None:
+        """Record whether the final streaming response completed successfully."""
+        self.stream_success = success
+
+    def mark_fallback_used(self) -> None:
+        """Record whether the request entered a degraded path."""
+        self.fallback_used = True
+
+    def tool_success_count(self) -> int:
+        """Get successful tool call count."""
+        return sum(1 for tool_call in self.tool_calls if tool_call.success)
+
+    def tool_failure_count(self) -> int:
+        """Get failed tool call count."""
+        return sum(1 for tool_call in self.tool_calls if not tool_call.success)
     
     def total_ms(self) -> float:
         """Get total request duration in milliseconds."""
@@ -200,18 +224,26 @@ class RequestMetrics:
         rag_chunks = self.rag.chunks_count if self.rag else 0
         rag_score = self.rag.top_score if self.rag else 0.0
         rag_ms = self.rag.latency_ms if self.rag else 0.0
+        first_token_ms = self.first_token_ms if self.first_token_ms is not None else -1.0
+        stream_success = int(self.stream_success)
+        fallback_used = int(self.fallback_used)
+        tool_success_count = self.tool_success_count()
+        tool_failure_count = self.tool_failure_count()
         
         logger.info(
             "trace=%s step=request_summary player=%s model=%s "
-            "total_ms=%.1f rag_ms=%.1f llm_ms=%.1f tool_ms=%.1f "
+            "total_ms=%.1f first_token_ms=%.1f rag_ms=%.1f llm_ms=%.1f tool_ms=%.1f "
             "rag_chunks=%d rag_score=%.3f "
             "input_tokens=%d output_tokens=%d cost_usd=%.6f "
-            "llm_calls=%d tool_calls=%d",
+            "llm_calls=%d tool_calls=%d tool_success_count=%d tool_failure_count=%d "
+            "stream_success=%d fallback_used=%d",
             self.trace_id, player_id, model,
-            total_ms, rag_ms, llm_ms, tool_ms,
+            total_ms, first_token_ms, rag_ms, llm_ms, tool_ms,
             rag_chunks, rag_score,
             input_tokens, output_tokens, cost,
             len(self.llm_calls), len(self.tool_calls),
+            tool_success_count, tool_failure_count,
+            stream_success, fallback_used,
         )
     
     def check_slow_request(self) -> bool:
@@ -235,6 +267,9 @@ class RequestMetrics:
         return {
             "trace_id": self.trace_id,
             "total_ms": self.total_ms(),
+            "first_token_ms": self.first_token_ms,
+            "stream_success": self.stream_success,
+            "fallback_used": self.fallback_used,
             "rag": {
                 "chunks_count": self.rag.chunks_count if self.rag else 0,
                 "top_score": self.rag.top_score if self.rag else 0.0,
@@ -251,7 +286,8 @@ class RequestMetrics:
             "tools": {
                 "calls": len(self.tool_calls),
                 "total_ms": self.total_tool_ms(),
-                "success_count": sum(1 for t in self.tool_calls if t.success),
+                "success_count": self.tool_success_count(),
+                "failure_count": self.tool_failure_count(),
             },
             "cost_usd": self.estimate_cost(),
         }

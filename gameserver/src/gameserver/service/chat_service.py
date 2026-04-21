@@ -15,8 +15,6 @@ import time
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 
-import time
-
 from gameserver.config.settings import Settings
 from gameserver.llm.base import ChatMessage, LLMProvider
 from gameserver.llm.factory import LLMProviderFactory
@@ -173,6 +171,7 @@ class ChatService:
                         # Try fallback provider if configured
                         fallback = self._get_fallback_provider(provider_name)
                         if fallback:
+                            metrics.mark_fallback_used()
                             provider = fallback
                             continue
                         raise CircuitBreakerOpenError(f"Circuit breaker open for {provider_name}")
@@ -207,6 +206,7 @@ class ChatService:
             
             if llm_error:
                 # Fallback to simple chat if tool calling fails
+                metrics.mark_fallback_used()
                 logger.warning("trace=%s step=llm_call status=fallback error=%s", trace_id, llm_error)
                 break
             
@@ -291,8 +291,12 @@ class ChatService:
         ]
 
         stream_start = time.time()
+        first_chunk_seen = False
         try:
             async for chunk in provider.stream_chat(messages):
+                if not first_chunk_seen:
+                    metrics.set_first_token_latency((time.time() - stream_start) * 1000)
+                    first_chunk_seen = True
                 narrative_parts.append(chunk)
                 yield {
                     "content": chunk,
@@ -301,9 +305,11 @@ class ChatService:
                     "state_changes": {},
                 }
             stream_latency_ms = (time.time() - stream_start) * 1000
+            metrics.mark_stream_success(True)
             logger.info("trace=%s step=stream_complete latency_ms=%.1f", trace_id, stream_latency_ms)
         except Exception as e:
             stream_latency_ms = (time.time() - stream_start) * 1000
+            metrics.mark_stream_success(False)
             logger.error("trace=%s step=stream_error error=%s latency_ms=%.1f", trace_id, e, stream_latency_ms, exc_info=True)
             yield {"content": "", "is_done": True, "error": str(e), "actions": [], "state_changes": {}}
             return
