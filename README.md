@@ -204,8 +204,8 @@ docker compose logs --no-color gameserver | bash scripts/collect_metrics.sh -
 
 已补出的运行证据：
 
-- 首轮真实日志基线：[docs/project-metrics-baseline-cn.md](./docs/project-metrics-baseline-cn.md)
-- 已知失败模式记录：[docs/failure-modes-cn.md](./docs/failure-modes-cn.md)
+- 首轮真实日志基线：[engineering/project/project-metrics-baseline-cn.md](./engineering/project/project-metrics-baseline-cn.md)
+- 已知失败模式记录：[engineering/project/failure-modes-cn.md](./engineering/project/failure-modes-cn.md)
 
 ## 代码位置
 
