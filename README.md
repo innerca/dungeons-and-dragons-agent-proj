@@ -1,45 +1,47 @@
-# Dungeons & Dragons Agent Project
+# Dungeons & Dragons Agent 系统项目
 
-AI 驱动的 DND 游戏项目，基于微服务架构构建。以刀剑神域 Progressive 系列小说为世界观基础，通过 RAG 检索增强生成实现沉浸式游戏体验。项目的重点不只是游戏内容本身，而是把 LLM 决策、工具调用、状态管理和检索能力落到一条完整的服务链路中。
+这是一个用 DND / SAO 场景承载的 Agent 应用后端项目。题材本身只是交互外壳，核心目标是验证多轮对话、状态推进、工具调用、RAG 检索、流式返回和可观测性这一整条链路。
 
-## 项目简介
-
-当前项目由四部分组成：
-
-- `frontend`：React + TypeScript 前端
-- `gateway`：Go 网关，负责 HTTP、SSE、WebSocket 和 gRPC 桥接
-- `gameserver`：Python 游戏服务，负责状态管理、工具执行、对话编排
-- `postgres / redis / chromadb`：持久化、缓存和检索
-
-项目的重点不在单次问答，而在一条完整的游戏链路：
-
-- 玩家登录和创建角色
-- 根据当前状态组装上下文
-- 调用 LLM 生成行动决策
-- 执行工具并更新角色 / 战斗 / 任务状态
-- 将结果流式返回前端
+项目现在已经把一条完整链路跑通了：前端发起请求，Gateway 转成 gRPC 调到 GameServer，GameServer 组装上下文、调用模型、执行工具、写回状态，再把结果流式返回前端。
 
 ## Demo
 
-- 演示视频：[demo-gameplay.mp4](./demo-gameplay.mp4)
+- Demo 视频：[demo-gameplay.mp4](./demo-gameplay.mp4)
+- 可直接看这几个片段：
+  - `00:00` 注册 / 登录
+  - `00:15` 角色创建
+  - `00:30` 进入游戏与开场对话
+  - `01:00` 状态查询与菜单交互
+  - `01:45` 探索、移动与 NPC / 任务交互
+  - `03:00` Prompt 注入演示
+  - `04:00` 战斗与技能调用
 
-## 当前状态
+视频里已经覆盖注册、登录、角色创建、探索、战斗和 Prompt 注入演示。
 
-已完成的部分：
+## 系统组成
 
-- Frontend、Gateway、GameServer 的基础联通
-- 角色、战斗、任务、NPC 关系、世界标记等核心状态
-- ReAct + Function Calling 的主流程
-- PostgreSQL、Redis、ChromaDB 集成
-- Demo 数据初始化和 Docker 启动流程
-- Python 和 Go 两侧基础测试
+- `frontend`
+  React + TypeScript 前端，负责登录、注册、角色创建和游戏界面。
+- `gateway`
+  Go 网关，负责 HTTP API、WebSocket、SSE 和 gRPC 桥接。
+- `gameserver`
+  Python 服务，负责上下文组装、RAG 检索、模型调用、工具执行和状态写回。
+- `postgres / redis / chromadb`
+  分别负责持久化、缓存和检索数据。
 
-当前还在继续完善的部分：
+## 现在有些什么
 
-- 流式链路的取消、重连、异常收尾
-- 状态持久化的一致性边界
-- 鉴权和安全边界
-- 部分服务层逻辑的拆分
+下面这张表只区分当前仓库里的实现情况，不写未来规划。
+
+| 模块 | 状态 | 说明 |
+|---|---|---|
+| 上下文组装 | `部分实现` | 已有状态快照、摘要、RAG 结果和最近消息拼装 |
+| 工具调用 | `已实现基础版` | 已有 ReAct 循环、参数解析、工具执行和状态写回 |
+| 流式链路 | `已实现基础版` | 已打通 `WebSocket -> gRPC -> SSE` |
+| 可观测性 | `部分实现` | 已有 `trace_id`、请求耗时、token 和成本估算 |
+| 降级与熔断 | `部分实现` | 已有重试、三态熔断和 fallback provider |
+| 安全边界 | `部分实现` | 已有 `player_id` 注入、工具参数校验和演示样例 |
+| 测试与评估 | `部分实现` | 单元测试和覆盖率有了，系统级评测还没补齐 |
 
 ## 架构
 
@@ -59,9 +61,9 @@ AI 驱动的 DND 游戏项目，基于微服务架构构建。以刀剑神域 Pr
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-请求主链路：
+主链路大致是这样：
 
-`Frontend -> Gateway -> GameServer -> LLM / Tool Execution -> State Update -> Stream Back To Client`
+`Frontend -> Gateway -> GameServer -> LLM / Tool -> State Update -> Stream Back`
 
 ## 快速开始
 
@@ -92,10 +94,10 @@ make stop
 make init-data
 ```
 
-初始化内容包括：
+会初始化：
 
 - PostgreSQL 表结构
-- Demo 账号和玩家数据
+- Demo 账号和角色数据
 - 装备、任务进度、NPC 关系等示例数据
 - ChromaDB 示例检索块
 
@@ -104,34 +106,15 @@ make init-data
 - `demo / demo123`
 - `testplayer / test123`
 
-如果需要强制重置：
+需要清空重来时：
 
 ```bash
 make init-data-reset
 ```
 
-说明：
+`asset/sao/` 里的完整小说文本不是启动必需项。没有这部分数据也能用 demo 数据把链路跑起来。
 
-- `asset/sao/` 中的完整原文数据不是启动必需项
-- 即使没有完整小说文本，仓库也可以使用 Demo 数据完成本地运行和联调
-
-## 启动方式
-
-### Docker 启动
-
-```bash
-make init-data
-make start-docker
-```
-
-常用命令：
-
-```bash
-make stop
-make dev-logs
-```
-
-### 本地开发
+## 本地开发
 
 环境要求：
 
@@ -143,7 +126,7 @@ make dev-logs
 - `protoc-gen-go`
 - `protoc-gen-go-grpc`
 
-分别在不同终端启动：
+启动命令：
 
 ```bash
 make proto-gen
@@ -152,9 +135,16 @@ make dev-gateway
 make dev-frontend
 ```
 
+Docker 模式：
+
+```bash
+make start-docker
+make dev-logs
+```
+
 ## 测试
 
-### Python GameServer
+Python GameServer：
 
 ```bash
 cd gameserver
@@ -162,7 +152,7 @@ uv run pytest tests/ -v
 uv run pytest tests/ --cov=src/gameserver --cov-branch
 ```
 
-### Go Gateway
+Go Gateway：
 
 ```bash
 cd gateway
@@ -171,137 +161,102 @@ GO111MODULE=on go test ./... -coverprofile=coverage.out
 go tool cover -html=coverage.out -o coverage.html
 ```
 
-## 本地验证
+仓库里当前记录的测试基线：
 
-已在 `2026-04-21` 本地验证通过：
+- Python GameServer：`241 passed`
+- Python 行覆盖率：`52.30%`
+- Python 分支覆盖率：`50%`
+- Go Gateway 语句覆盖率：`41.4%`
 
-- `frontend`：`npm run build`
-- `frontend`：`npm run lint`
-- `gameserver`：`uv run pytest tests/ -q`，`241 passed`
-- `gateway`：`GO111MODULE=on go test ./...`
+这些数字只说明当前代码测试情况，不代表系统级效果评测。
 
-## 技术栈
+## 运行态指标
 
-| 模块 | 技术 |
-|------|------|
-| 前端 | React + TypeScript + Vite |
-| 网关 | Go + chi |
-| 游戏服务器 | Python + grpcio |
-| 客户端流式通信 | WebSocket + SSE |
-| 服务间通信 | gRPC |
-| 持久化 | PostgreSQL 16 + Redis 7 |
-| 检索 | ChromaDB + BGE-small-zh |
-| 容器化 | Docker Compose |
-| Python 包管理 | uv |
-| LLM 提供方 | 默认 DeepSeek |
+GameServer 现在会在 `request_summary` 日志里记录：
 
-## 设计文档
+- `total_ms`
+- `first_token_ms`
+- `rag_ms`
+- `llm_ms`
+- `tool_ms`
+- `rag_chunks`
+- `input_tokens`
+- `output_tokens`
+- `cost_usd`
+- `llm_calls`
+- `tool_calls`
+- `tool_success_count`
+- `tool_failure_count`
+- `stream_success`
+- `fallback_used`
 
-核心文档：
+日志聚合入口：
 
-- [data/dnd-game-system.md](./data/dnd-game-system.md)：游戏系统蓝图
-- [data/dnd-world-setting.md](./data/dnd-world-setting.md)：世界观设定
-- [data/dnd-novel-chunking.md](./data/dnd-novel-chunking.md)：小说分块规则
-- [agent-engineering-handbook.md](./agent-engineering-handbook.md)：与当前项目直接相关的 Agent 设计笔记
+```bash
+make collect-metrics LOG_FILE=path/to/gameserver.log
+```
 
-补充材料：
+如果你是跑 Docker，也可以直接把日志管道给脚本：
 
+```bash
+docker compose logs --no-color gameserver | bash scripts/collect_metrics.sh -
+```
+
+已补出的运行证据：
+
+- 首轮真实日志基线：[docs/project-metrics-baseline-cn.md](./docs/project-metrics-baseline-cn.md)
+- 已知失败模式记录：[docs/failure-modes-cn.md](./docs/failure-modes-cn.md)
+
+## 代码位置
+
+几个关键文件：
+
+- `gameserver/src/gameserver/game/context_builder.py`
+  负责系统提示、玩家状态、任务 / 战斗 / 关系信息、摘要和 RAG 结果拼装。
+- `gameserver/src/gameserver/service/chat_service.py`
+  负责场景分类、RAG 检索、ReAct 循环、工具调用和流式返回。
+- `gameserver/src/gameserver/game/action_executor.py`
+  负责具体工具执行和状态变更。
+- `gateway/internal/handler/websocket.go`
+  负责接收请求、生成 `trace_id`、启动 gRPC 流。
+- `gateway/internal/handler/sse.go`
+  负责把流式结果转成 SSE 返回前端。
+- `gameserver/src/gameserver/service/request_metrics.py`
+  负责请求级指标统计。
+- `gameserver/src/gameserver/llm/circuit_breaker.py`
+  负责熔断和 fallback。
+
+## 文档入口
+
+- [data/dnd-game-system.md](./data/dnd-game-system.md)
+- [data/dnd-world-setting.md](./data/dnd-world-setting.md)
+- [data/dnd-novel-chunking.md](./data/dnd-novel-chunking.md)
+- [agent-engineering-handbook.md](./agent-engineering-handbook.md)
 - [engineering/Agent工程手册final_version.md](./engineering/Agent工程手册final_version.md)
-- [engineering/端侧轻量级用户画像系统落地方案.md](./engineering/端侧轻量级用户画像系统落地方案.md)
+- [engineering/AI协作规范.md](./engineering/AI协作规范.md)
 
 ## 检索知识库
 
-项目使用 ChromaDB 存储从 SAO Progressive 文本中切分出的本地知识块，用于 RAG 检索。
+项目使用 ChromaDB 保存 SAO Progressive 文本分块和实体数据，用于 RAG。
 
-本地数据源路径预期为：
+本地数据路径预期为：
 
 - `asset/sao/`
 
-构建和校验命令：
+相关命令：
 
 ```bash
 make ingest-novels
 make verify-vectordb
 ```
 
-## 仓库结构
+## 后续还要补的部分
 
-```text
-.
-├── frontend/           # React + TypeScript 前端
-├── gateway/            # Go 网关
-├── gameserver/         # Python 游戏服务与 Agent 编排
-├── proto/              # gRPC 协议定义
-├── data/               # 世界观、规则、实体和分块文档
-├── engineering/        # 补充设计与研究文档
-├── docs/               # 仓库整理和求职相关文档
-├── scripts/            # 启动、初始化和辅助脚本
-├── docker-compose.yml  # 本地编排
-├── Makefile            # 常用命令
-└── VERSION             # 项目版本
-```
+接下来更值得做的还是三件事：
 
-## 后续改进方向
-
-当前更值得继续投入的方向：
-
-1. 强化流式链路的取消、重连、清理和异常收尾
-2. 收紧状态持久化的一致性边界和异常恢复
-3. 拆分 GameServer 中偏大的编排逻辑
-4. 明确鉴权与安全边界
-5. 继续压缩文档层级，减少和实现无关的干扰信息
-
-## 更新日志
-
-### v0.5007 (2026-04-15)
-
-- 在 README 中补充 Gateway 测试覆盖摘要
-- 更新内部文档链接和锚点
-
-### v0.5006 (2026-04-14)
-
-- 提升 GameServer 核心模块测试覆盖率
-- 扩展 `action_executor.py` 和 `quest_service.py` 测试
-
-### v0.5005 (2026-04-14)
-
-- 强化 CI 覆盖率检查和测试质量
-
-### v0.5004 (2026-04-14)
-
-- 为核心游戏模块补充更完整的测试覆盖
-
-### v0.5003 (2026-04-14)
-
-- 修复 Python、Go 和前端侧的代码质量问题
-
-### v0.5002 (2026-04-14)
-
-- 增加测试覆盖与 Demo 数据初始化
-
-### v0.5001 (2026-04-13)
-
-- 增加可观测性和 LLM 熔断降级
-
-### v0.500 (2026-04-06)
-
-- 引入数据驱动游戏引擎和 RAG 集成
-
-### v0.400 (2026-04-06)
-
-- 重构为全栈 D&D 游戏架构
-
-### v0.300 (2026-04-06)
-
-- 增加 D&D 游戏设计文档
-
-### v0.200 (2026-04-06)
-
-- 增加小说向量知识库支持
-
-### v0.100 (2026-04-06)
-
-- 初始版本发布
+1. 跑一轮固定样例，把运行态指标填成基线。
+2. 补流式中断、工具失败、状态写回失败这些异常场景的记录。
+3. 把 Prompt 注入和安全边界整理成更清楚的验证结果。
 
 ## 许可证
 
