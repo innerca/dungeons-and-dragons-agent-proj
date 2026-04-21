@@ -308,6 +308,35 @@ class TestUpdateRelationshipEdgeCases:
         assert new_level == 5
         # fetchrow handles the UPDATE ... RETURNING
 
+    @pytest.mark.asyncio
+    async def test_update_relationship_query_casts_numeric_params(self, mock_get_pg, player_id):
+        """关系值运算对 SQL 参数做显式整数类型约束."""
+        char_id = str(uuid.uuid4())
+        npc_id = "npc_001"
+
+        mock_char_row = MagicMock()
+        mock_char_row.__getitem__ = lambda s, key: {"id": uuid.UUID(char_id)}[key]
+
+        mock_npc_row = MagicMock()
+        mock_npc_row.__getitem__ = lambda s, key: {"initial_relationship": 0}[key]
+
+        mock_result_row = MagicMock()
+        mock_result_row.__getitem__ = lambda s, key: {"relationship_level": 1}[key]
+
+        mock_get_pg.fetchrow = AsyncMock(side_effect=[
+            mock_char_row,
+            mock_npc_row,
+            mock_result_row,
+        ])
+
+        await update_relationship(player_id, npc_id, 1)
+
+        update_call = mock_get_pg.fetchrow.await_args_list[2]
+        query = update_call.args[0]
+
+        assert "$3::integer + $4::integer" in query
+        assert "relationship_level + $4::integer" in query
+
 
 class TestRelationshipTierBoundaries:
     """Tests for relationship tier boundaries."""

@@ -48,6 +48,9 @@ Thumbs.db
 # Logs
 *.log
 
+# Documentation
+docs/
+
 # EPUB files (large binary)
 *.epub
 

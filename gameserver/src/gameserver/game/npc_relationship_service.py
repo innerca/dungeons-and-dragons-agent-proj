@@ -105,11 +105,11 @@ async def update_relationship(
     row = await pool.fetchrow(
         """INSERT INTO character_npc_relationships
            (character_id, npc_id, relationship_level, interaction_count, last_interaction_summary)
-           VALUES ($1, $2, GREATEST($6, LEAST($7, $3 + $4)), 1, $5)
+           VALUES ($1, $2, GREATEST($6, LEAST($7, $3::integer + $4::integer)), 1, $5)
            ON CONFLICT (character_id, npc_id)
            DO UPDATE SET
                relationship_level = GREATEST($6, LEAST($7,
-                   character_npc_relationships.relationship_level + $4)),
+                   character_npc_relationships.relationship_level + $4::integer)),
                interaction_count = character_npc_relationships.interaction_count + 1,
                last_interaction_summary = COALESCE($5, character_npc_relationships.last_interaction_summary)
            RETURNING relationship_level""",
